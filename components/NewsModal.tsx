@@ -272,7 +272,7 @@ export default function NewsModal({ news, onSave, onClose }: NewsModalProps) {
                      <img
                        src={imagePreview}
                        alt="Preview"
-                       className="w-full h-40 object-cover"
+                       className="w-full h-24 object-contain bg-gray-50"
                        onError={() => setImagePreview('')}
                      />
                    </div>

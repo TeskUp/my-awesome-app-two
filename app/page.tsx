@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, Edit2, Trash2, X, Image as ImageIcon, Calendar, User, Clock, Tag } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, Image as ImageIcon, Newspaper, Calendar, Eye, MessageSquare } from 'lucide-react'
 import NewsModal from '@/components/NewsModal'
 import Sidebar from '@/components/Sidebar'
 import ToastContainer, { ToastMessage } from '@/components/ToastContainer'
@@ -38,6 +38,16 @@ export default function AdminPanel() {
     newsId: null,
     newsTitle: null,
   })
+
+  // Calculate statistics
+  const totalNews = newsData.length
+  const newsThisMonth = newsData.filter((news) => {
+    const newsDate = new Date(news.createdAt)
+    const now = new Date()
+    return newsDate.getMonth() === now.getMonth() && newsDate.getFullYear() === now.getFullYear()
+  }).length
+  const totalViews = newsData.reduce((sum, news) => sum + (news.views || 0), 0)
+  const totalComments = newsData.reduce((sum, news) => sum + (news.comments || 0), 0)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
     const id = Date.now().toString()
@@ -92,21 +102,13 @@ export default function AdminPanel() {
 
   const handleDeleteConfirm = () => {
     if (confirmModal.newsId) {
-      const deletedNews = newsData.find((item) => item.id === confirmModal.newsId)
-      const updated = newsData.filter((item) => item.id !== confirmModal.newsId)
-      setNewsData(updated)
-      localStorage.setItem('newsData', JSON.stringify(updated))
-      setFilteredNews(updated.filter(
-        (news) =>
-          searchTerm === '' ||
-          news.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          news.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          news.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          news.tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-      ))
-      showToast(`"${deletedNews?.title}" successfully deleted!`, 'success')
+      const updatedNews = newsData.filter((news) => news.id !== confirmModal.newsId)
+      setNewsData(updatedNews)
+      setFilteredNews(updatedNews)
+      localStorage.setItem('newsData', JSON.stringify(updatedNews))
+      setConfirmModal({ isOpen: false, newsId: null, newsTitle: null })
+      showToast('News deleted successfully!', 'success')
     }
-    setConfirmModal({ isOpen: false, newsId: null, newsTitle: null })
   }
 
   const handleDeleteCancel = () => {
@@ -114,16 +116,19 @@ export default function AdminPanel() {
   }
 
   const handleSaveNews = (news: NewsItem) => {
-    let updated: NewsItem[]
     if (editingNews) {
-      updated = newsData.map((item) => (item.id === editingNews.id ? news : item))
-      showToast(`"${news.title}" successfully updated!`, 'success')
+      const updatedNews = newsData.map((item) => (item.id === news.id ? news : item))
+      setNewsData(updatedNews)
+      setFilteredNews(updatedNews)
+      localStorage.setItem('newsData', JSON.stringify(updatedNews))
+      showToast('News updated successfully!', 'success')
     } else {
-      updated = [...newsData, news]
-      showToast(`"${news.title}" successfully added!`, 'success')
+      const updatedNews = [...newsData, news]
+      setNewsData(updatedNews)
+      setFilteredNews(updatedNews)
+      localStorage.setItem('newsData', JSON.stringify(updatedNews))
+      showToast('News added successfully!', 'success')
     }
-    setNewsData(updated)
-    localStorage.setItem('newsData', JSON.stringify(updated))
     setIsModalOpen(false)
     setEditingNews(null)
   }
@@ -132,7 +137,7 @@ export default function AdminPanel() {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
-      month: 'long',
+      month: 'short',
       day: 'numeric',
     })
   }
@@ -158,6 +163,53 @@ export default function AdminPanel() {
               <Plus className="w-5 h-5" />
               Add New News
             </button>
+          </div>
+
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* Total News Card */}
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 shadow-xl shadow-blue-500/30 hover:shadow-2xl hover:shadow-blue-500/40 transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                  <Newspaper className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <h3 className="text-white/80 text-sm font-medium mb-1">Total News</h3>
+              <p className="text-3xl font-bold text-white">{totalNews}</p>
+            </div>
+
+            {/* This Month News Card */}
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 shadow-xl shadow-purple-500/30 hover:shadow-2xl hover:shadow-purple-500/40 transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                  <Calendar className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <h3 className="text-white/80 text-sm font-medium mb-1">This Month</h3>
+              <p className="text-3xl font-bold text-white">{newsThisMonth}</p>
+            </div>
+
+            {/* Total Views Card */}
+            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 shadow-xl shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/40 transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                  <Eye className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <h3 className="text-white/80 text-sm font-medium mb-1">Total Views</h3>
+              <p className="text-3xl font-bold text-white">{totalViews.toLocaleString()}</p>
+            </div>
+
+            {/* Total Comments Card */}
+            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 shadow-xl shadow-orange-500/30 hover:shadow-2xl hover:shadow-orange-500/40 transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                  <MessageSquare className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <h3 className="text-white/80 text-sm font-medium mb-1">Total Comments</h3>
+              <p className="text-3xl font-bold text-white">{totalComments.toLocaleString()}</p>
+            </div>
           </div>
 
           {/* Search Bar */}
