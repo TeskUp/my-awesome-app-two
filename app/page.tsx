@@ -133,11 +133,11 @@ export default function AdminPanel() {
         setFilteredNews(mappedNews)
         
         // Extract unique categories from API response (REAL categories from backend)
-        const categories = [...new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))] as string[]
+        const categories = Array.from(new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
         console.log('Available categories from API:', categories)
         // Always include 'News' as default, then add other categories from API
         const allCategories = categories.length > 0 
-          ? [...new Set(['News', ...categories])] 
+          ? Array.from(new Set(['News', ...categories])) 
           : ['News']
         setAvailableCategories(allCategories)
         
@@ -177,10 +177,10 @@ export default function AdminPanel() {
             }))
             
             // Extract unique categories from localStorage data
-            const categories = [...new Set(data.map((item: any) => item.category?.trim()).filter(Boolean))] as string[]
+            const categories = Array.from(new Set(data.map((item: any) => item.category?.trim()).filter(Boolean))) as string[]
             // Always include 'News' as default, then add other categories
             const allCategories = categories.length > 0 
-              ? [...new Set(['News', ...categories])] 
+              ? Array.from(new Set(['News', ...categories])) 
               : ['News']
             setAvailableCategories(allCategories)
             
@@ -566,9 +566,9 @@ export default function AdminPanel() {
         const mappedNews = await Promise.all(mappedNewsPromises)
         
         // Also update categories list - use categories from mapped news (which includes detail data)
-        const categories = [...new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))] as string[]
+        const categories = Array.from(new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
         const allCategories = categories.length > 0 
-          ? [...new Set(['News', ...categories])] 
+          ? Array.from(new Set(['News', ...categories])) 
           : ['News']
         setAvailableCategories(allCategories)
         
@@ -854,9 +854,9 @@ export default function AdminPanel() {
         const mappedNews = await Promise.all(mappedNewsPromises)
         
         // Also update categories list - use categories from mapped news (which includes detail data)
-        const categories = [...new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))] as string[]
+        const categories = Array.from(new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
         const allCategories = categories.length > 0 
-          ? [...new Set(['News', ...categories])] 
+          ? Array.from(new Set(['News', ...categories])) 
           : ['News']
         setAvailableCategories(allCategories)
         

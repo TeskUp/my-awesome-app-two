@@ -118,7 +118,7 @@ export async function PUT(request: NextRequest) {
     formData.set('IsDeactive', isDeactive)
     
     // Ensure image is set if provided
-    if (coverPicture && (coverPicture instanceof File || coverPicture instanceof Blob)) {
+    if (coverPicture && coverPicture instanceof File) {
       formData.set('CoverPicture', coverPicture)
     } else if (imageUrl) {
       formData.set('ImageUrl', imageUrl)

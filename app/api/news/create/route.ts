@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const entries = Array.from(incomingFormData.entries())
     for (const [key, value] of entries) {
       const fileValue = value as File | Blob | string
-      if (fileValue && typeof fileValue === 'object' && (fileValue instanceof File || fileValue instanceof Blob)) {
+      if (fileValue && fileValue instanceof File) {
         formData.append(key, fileValue)
       } else {
         formData.append(key, String(fileValue))
