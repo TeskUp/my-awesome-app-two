@@ -54,16 +54,32 @@ export async function POST(request: NextRequest) {
     
     formData.append('LanguageId', languageId)
 
-    console.log(`AddNewsDetail: Using LanguageId as language name: ${languageId} (converted from: ${providedLanguageId || 'default'})`)
-
-    // Forward the form data to backend API
-    const response = await fetch(`${API_BASE_URL}/News/AddNewsDetail/newsdetails/${newsId}`, {
+    // Based on Swagger, the correct endpoint is: /api/News/AddNewsDetail/newsdetails/{id}
+    // Also add NewsId to formData as it might be required by backend
+    formData.append('NewsId', newsId)
+    
+    console.log(`[addDetail API] ========================================`)
+    console.log(`[addDetail API] News ID: ${newsId}`)
+    console.log(`[addDetail API] Using LanguageId as language name: ${languageId} (converted from: ${providedLanguageId || 'default'})`)
+    console.log(`[addDetail API] Title: ${formData.get('Title')}`)
+    console.log(`[addDetail API] Description: ${formData.get('Description')}`)
+    console.log(`[addDetail API] LanguageId: ${formData.get('LanguageId')}`)
+    console.log(`[addDetail API] NewsId: ${formData.get('NewsId')}`)
+    console.log(`[addDetail API] ========================================`)
+    
+    // Use the correct endpoint from Swagger: /api/News/AddNewsDetail/newsdetails/{id}
+    const backendUrl = `${API_BASE_URL}/News/AddNewsDetail/newsdetails/${newsId}`
+    console.log(`[addDetail API] Sending POST request to: ${backendUrl}`)
+    
+    const response = await fetch(backendUrl, {
       method: 'POST',
       body: formData,
       cache: 'no-store',
     })
 
+    console.log(`[addDetail API] Backend response status: ${response.status} ${response.statusText}`)
     const responseText = await response.text()
+    console.log(`[addDetail API] Backend response text (full):`, responseText)
 
     if (!response.ok) {
       let errorMessage = `Failed to add news detail: ${response.statusText}`
@@ -71,6 +87,8 @@ export async function POST(request: NextRequest) {
       
       try {
         errorDetails = JSON.parse(responseText)
+        console.error(`[addDetail API] Error details:`, errorDetails)
+        
         if (errorDetails.errors) {
           const errorText = Object.entries(errorDetails.errors)
             .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
@@ -80,21 +98,46 @@ export async function POST(request: NextRequest) {
           errorMessage = `${errorMessage} - ${errorDetails.title}`
         } else if (errorDetails.message) {
           errorMessage = `${errorMessage} - ${errorDetails.message}`
+        } else if (errorDetails.error) {
+          errorMessage = `${errorMessage} - ${errorDetails.error}`
         }
-      } catch {
+      } catch (parseError) {
+        console.error(`[addDetail API] Failed to parse error response:`, parseError)
         if (responseText) {
           errorMessage = `${errorMessage} - ${responseText}`
         }
       }
       
+      console.error(`[addDetail API] ✗✗✗ ERROR: ${errorMessage}`)
       return NextResponse.json(
         { error: errorMessage, details: errorDetails },
         { status: response.status }
       )
     }
 
-    // Return success response
-    return NextResponse.json({ success: true })
+    // Parse success response
+    let result: any = {}
+    try {
+      if (responseText) {
+        result = JSON.parse(responseText)
+        console.log(`[addDetail API] Success response parsed:`, result)
+      }
+    } catch (parseError) {
+      // If response is not JSON but status is OK, that's fine
+      console.log(`[addDetail API] Response is not JSON, but status is OK - assuming success`)
+    }
+
+    // Check if result contains error
+    if (result.error) {
+      console.error(`[addDetail API] Result contains error:`, result.error)
+      return NextResponse.json(
+        { error: result.error },
+        { status: 500 }
+      )
+    }
+
+    console.log(`[addDetail API] ✓✓✓ SUCCESS: News detail added successfully`)
+    return NextResponse.json({ success: true, result })
   } catch (error: any) {
     console.error('Error in add news detail API route:', error)
     return NextResponse.json(

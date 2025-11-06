@@ -234,10 +234,17 @@ export async function deleteNews(newsId: string): Promise<void> {
       throw new Error(errorMessage)
     }
 
-    // Check if response has error
-    const result = await response.json()
-    if (result.error) {
-      throw new Error(result.error)
+    // HardDelete endpoint may return 200 OK with empty body
+    // Try to parse response, but don't fail if it's empty
+    try {
+      const result = await response.json()
+      if (result.error) {
+        throw new Error(result.error)
+      }
+      // Success - result.success should be true
+    } catch (parseError) {
+      // If response is empty or not JSON, that's OK - 200 OK means delete succeeded
+      console.log('Delete response is empty or not JSON, but status is OK - delete succeeded')
     }
   } catch (error) {
     console.error('Error deleting news:', error)
@@ -282,28 +289,61 @@ export interface AddNewsDetailRequest {
 
 export async function addNewsDetail(newsId: string, request: AddNewsDetailRequest): Promise<void> {
   try {
+    console.log(`[addNewsDetail] Starting for newsId: ${newsId}, language: ${request.LanguageId}`)
+    console.log(`[addNewsDetail] Title: "${request.Title}", Description: "${request.Description}"`)
+    
     const formData = new FormData()
     formData.append('Title', request.Title)
     formData.append('Description', request.Description)
     formData.append('LanguageId', request.LanguageId)
 
+    console.log(`[addNewsDetail] Sending request to: ${API_BASE_URL}/addDetail?id=${newsId}`)
+    
     const response = await fetch(`${API_BASE_URL}/addDetail?id=${newsId}`, {
       method: 'POST',
       body: formData,
     })
 
+    console.log(`[addNewsDetail] Response status: ${response.status} ${response.statusText}`)
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-      const errorMessage = errorData.error || `Failed to add news detail: ${response.statusText}`
+      const responseText = await response.text()
+      console.error(`[addNewsDetail] Error response text:`, responseText)
+      
+      let errorData: any = { error: 'Unknown error' }
+      try {
+        errorData = JSON.parse(responseText)
+      } catch {
+        errorData = { error: responseText || `Failed to add news detail: ${response.statusText}` }
+      }
+      
+      const errorMessage = errorData.error || errorData.message || `Failed to add news detail: ${response.statusText}`
+      console.error(`[addNewsDetail] Error message:`, errorMessage)
       throw new Error(errorMessage)
     }
 
-    const result = await response.json()
+    const responseText = await response.text()
+    console.log(`[addNewsDetail] Success response text:`, responseText)
+    
+    let result: any = {}
+    try {
+      result = JSON.parse(responseText)
+    } catch {
+      // If response is not JSON but status is OK, that's fine
+      console.log(`[addNewsDetail] Response is not JSON, but status is OK - assuming success`)
+      return
+    }
+    
     if (result.error) {
+      console.error(`[addNewsDetail] Result contains error:`, result.error)
       throw new Error(result.error)
     }
-  } catch (error) {
-    console.error('Error adding news detail:', error)
+    
+    console.log(`[addNewsDetail] ✓ Successfully added news detail for ${request.LanguageId}`)
+  } catch (error: any) {
+    console.error(`[addNewsDetail] ✗ Error adding news detail for ${request.LanguageId}:`, error)
+    console.error(`[addNewsDetail] Error message:`, error?.message)
+    console.error(`[addNewsDetail] Error stack:`, error?.stack)
     throw error
   }
 }

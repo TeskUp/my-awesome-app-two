@@ -154,12 +154,29 @@ export default function AdminPanel() {
           // If categoryName is still null/empty after GetDetail, default to 'News'
           const categoryToUse = finalItem.categoryName?.trim() || 'News'
           
+          // If title is still null/empty after GetDetail, use fallback from tags or ID
+          let titleToUse = finalItem.title?.trim() || ''
+          if (!titleToUse && finalItem.tags && finalItem.tags.length > 0) {
+            // Use first tag as title fallback
+            titleToUse = finalItem.tags[0]
+          } else if (!titleToUse) {
+            // Use ID as last resort fallback
+            titleToUse = `News ${finalItem.id.substring(0, 8)}`
+          }
+          
+          // If description is still null/empty after GetDetail, use fallback
+          let descriptionToUse = finalItem.description?.trim() || ''
+          if (!descriptionToUse) {
+            // Use title as description fallback, or default message
+            descriptionToUse = titleToUse || 'No description available'
+          }
+          
           const newsItem: NewsItem = {
             id: finalItem.id || '',
-            // Use real title from detail if available
-            title: finalItem.title?.trim() || '',
-            // Use real description from detail if available
-            description: finalItem.description?.trim() || '',
+            // Use real title from detail if available, otherwise use fallback
+            title: titleToUse,
+            // Use real description from detail if available, otherwise use fallback
+            description: descriptionToUse,
             // Use real category name from API or detail, default to 'News'
             category: categoryToUse,
             image: finalItem.coverPictureUrl || '',
@@ -369,15 +386,29 @@ export default function AdminPanel() {
             }
           }
           
+          // If title is still null/empty, use fallback from tags or ID
+          let titleToUse = finalItem.title?.trim() || ''
+          if (!titleToUse && finalItem.tags && finalItem.tags.length > 0) {
+            titleToUse = finalItem.tags[0]
+          } else if (!titleToUse) {
+            titleToUse = `News ${finalItem.id.substring(0, 8)}`
+          }
+          
+          // If description is still null/empty, use fallback
+          let descriptionToUse = finalItem.description?.trim() || ''
+          if (!descriptionToUse) {
+            descriptionToUse = titleToUse || 'No description available'
+          }
+          
           return {
             id: finalItem.id || '',
-            title: finalItem.title?.trim() || '',
-            description: finalItem.description?.trim() || '',
-            category: finalItem.categoryName?.trim() || '',
+            title: titleToUse,
+            description: descriptionToUse,
+            category: finalItem.categoryName?.trim() || 'News',
             image: finalItem.coverPictureUrl || '',
             tags: finalItem.tags || [],
-            author: finalItem.author || '',
-            readTime: finalItem.readTimeMinutes || 0,
+            author: finalItem.author || 'Teskup Team',
+            readTime: finalItem.readTimeMinutes || 5,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             views: finalItem.viewCount || 0,
@@ -406,14 +437,142 @@ export default function AdminPanel() {
   const handleDeleteConfirm = async () => {
     if (confirmModal.newsId) {
       try {
+        console.log('Deleting news with ID:', confirmModal.newsId)
+        
         // Delete from backend API
         await deleteNews(confirmModal.newsId)
         
-        // Remove from local state
-        const updatedNews = newsData.filter((news) => news.id !== confirmModal.newsId)
-        setNewsData(updatedNews)
-        setFilteredNews(updatedNews)
-        localStorage.setItem('newsData', JSON.stringify(updatedNews))
+        console.log('News deleted successfully, refreshing list...')
+        
+        // Refresh news list from API to ensure consistency
+        try {
+          const languages = ['English', 'Azerbaijani', 'Russian']
+          const allLanguageResponses = await Promise.allSettled(
+            languages.map(lang => getAllNews(lang))
+          )
+          
+          // Combine all news from all languages
+          const allNewsMap = new Map<string, NewsResponse>()
+          
+          for (let i = 0; i < allLanguageResponses.length; i++) {
+            const result = allLanguageResponses[i]
+            if (result.status === 'fulfilled') {
+              const news = result.value
+              news.forEach((item: NewsResponse) => {
+                const existing = allNewsMap.get(item.id)
+                if (!existing || (!existing.title && item.title) || (!existing.description && item.description)) {
+                  allNewsMap.set(item.id, item)
+                } else if (existing && item.title && item.description) {
+                  if ((!existing.title || !existing.description) && item.title && item.description) {
+                    allNewsMap.set(item.id, item)
+                  }
+                }
+              })
+            }
+          }
+          
+          const response = Array.from(allNewsMap.values())
+          
+          // Map API response to NewsItem format
+          const mappedNewsPromises = response.map(async (item) => {
+            let finalItem = item
+            
+            if (!item.title || !item.description || !item.categoryName || 
+                item.title === null || item.description === null || item.categoryName === null ||
+                item.title === '' || item.description === '' || item.categoryName === '') {
+              try {
+                const languages = ['English', 'Azerbaijani', 'Russian']
+                let bestDetail: NewsResponse | null = null
+                
+                for (const lang of languages) {
+                  try {
+                    const detail = await getNewsDetail(item.id, lang)
+                    if (detail.title && detail.description) {
+                      bestDetail = detail
+                      break
+                    }
+                    if (!bestDetail) {
+                      bestDetail = detail
+                    }
+                  } catch (langError) {
+                    console.warn(`Error fetching detail for ${lang}:`, langError)
+                  }
+                }
+                
+                if (bestDetail) {
+                  finalItem = {
+                    ...item,
+                    title: bestDetail.title || item.title,
+                    description: bestDetail.description || item.description,
+                    categoryName: bestDetail.categoryName || item.categoryName,
+                  }
+                }
+              } catch (detailError) {
+                console.error(`Error fetching detail for news ID ${item.id}:`, detailError)
+              }
+            }
+            
+            const categoryToUse = finalItem.categoryName?.trim() || 'News'
+            
+            // If title is still null/empty after GetDetail, use fallback from tags or ID
+            let titleToUse = finalItem.title?.trim() || ''
+            if (!titleToUse && finalItem.tags && finalItem.tags.length > 0) {
+              titleToUse = finalItem.tags[0]
+            } else if (!titleToUse) {
+              titleToUse = `News ${finalItem.id.substring(0, 8)}`
+            }
+            
+            // If description is still null/empty after GetDetail, use fallback
+            let descriptionToUse = finalItem.description?.trim() || ''
+            if (!descriptionToUse) {
+              descriptionToUse = titleToUse || 'No description available'
+            }
+            
+            const newsItem: NewsItem = {
+              id: finalItem.id || '',
+              title: titleToUse,
+              description: descriptionToUse,
+              category: categoryToUse,
+              image: finalItem.coverPictureUrl || '',
+              tags: finalItem.tags || [],
+              author: finalItem.author?.trim() || 'Teskup Team',
+              readTime: finalItem.readTimeMinutes || 5,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              views: finalItem.viewCount || 0,
+              comments: finalItem.likeCount || 0,
+            }
+            
+            return newsItem
+          })
+          
+          const mappedNews = await Promise.all(mappedNewsPromises)
+          
+          // Sort by creation date (newest first)
+          const sortedNews = [...mappedNews].sort((a, b) => {
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          })
+          
+          // Update categories list
+          const categories = Array.from(new Set(sortedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
+          const allCategories = categories.length > 0 
+            ? Array.from(new Set(['News', ...categories])) 
+            : ['News']
+          setAvailableCategories(allCategories)
+          
+          setNewsData(sortedNews)
+          setFilteredNews(sortedNews)
+          localStorage.setItem('newsData', JSON.stringify(sortedNews))
+          
+          console.log('News list refreshed after delete, total items:', sortedNews.length)
+        } catch (refreshError) {
+          console.error('Error refreshing news list after delete:', refreshError)
+          // Fallback: remove from local state even if refresh fails
+          const updatedNews = newsData.filter((news) => news.id !== confirmModal.newsId)
+          setNewsData(updatedNews)
+          setFilteredNews(updatedNews)
+          localStorage.setItem('newsData', JSON.stringify(updatedNews))
+        }
         
         setConfirmModal({ isOpen: false, newsId: null, newsTitle: null })
         showToast('News deleted successfully from database!', 'success')
@@ -743,10 +902,24 @@ export default function AdminPanel() {
                 }
               }
               
+              // If title is still null/empty, use fallback from tags or ID
+              let titleToUse = finalItem.title?.trim() || ''
+              if (!titleToUse && finalItem.tags && finalItem.tags.length > 0) {
+                titleToUse = finalItem.tags[0]
+              } else if (!titleToUse) {
+                titleToUse = `News ${finalItem.id.substring(0, 8)}`
+              }
+              
+              // If description is still null/empty, use fallback
+              let descriptionToUse = finalItem.description?.trim() || ''
+              if (!descriptionToUse) {
+                descriptionToUse = titleToUse || 'No description available'
+              }
+              
               return {
                 id: finalItem.id || '',
-                title: finalItem.title?.trim() || '',
-                description: finalItem.description?.trim() || '',
+                title: titleToUse,
+                description: descriptionToUse,
                 category: finalItem.categoryName?.trim() || 'News',
                 image: finalItem.coverPictureUrl || '',
                 tags: finalItem.tags || [],
@@ -897,30 +1070,95 @@ export default function AdminPanel() {
         // Get the created news ID if available, otherwise fetch all news and find the latest
         let createdNewsId: string | null = createResult.id || null
         
-        // If we don't have the ID from response, try to get it quickly
+        // If we don't have the ID from response, try to get it by fetching all news
         if (!createdNewsId) {
           console.log('No ID in CreateNews response, fetching all news to find the newly created one...')
           
-          // Fetch from English first (fastest)
-          const allNews = await getAllNews('English')
-          console.log('Fetched all news, count:', allNews.length)
+          // Wait a bit for backend to process the creation
+          await new Promise(resolve => setTimeout(resolve, 1500))
           
-          // Find the news that matches our created news (by author and recent creation)
-          const matchingNews = allNews.find(item => {
-            const authorMatch = item.author?.trim() === (news.author?.trim() || 'Teskup Team')
-            // Check if it's a recently created news (might not have title/description yet)
-            return authorMatch
+          // Fetch from all languages to find the new news
+          const allLanguageResponses = await Promise.allSettled([
+            getAllNews('English'),
+            getAllNews('Azerbaijani'),
+            getAllNews('Russian')
+          ])
+          
+          // Combine all news from all languages
+          const allNewsMap = new Map<string, NewsResponse>()
+          for (const result of allLanguageResponses) {
+            if (result.status === 'fulfilled') {
+              result.value.forEach((item: NewsResponse) => {
+                allNewsMap.set(item.id, item)
+              })
+            }
+          }
+          
+          const allNews = Array.from(allNewsMap.values())
+          console.log('Fetched all news from all languages, total unique items:', allNews.length)
+          
+          // Find the news that matches our created news
+          // Try to match by tags first (most reliable), then by author
+          // Handle tags - it can be a string (comma-separated) or an array
+          let tagsToMatch: string[] = []
+          // Type assertion to handle both string and array types
+          const tagsValue = (news.tags as unknown) as string | string[] | undefined
+          if (tagsValue) {
+            if (typeof tagsValue === 'string') {
+              tagsToMatch = tagsValue.split(',').map((t: string) => t.trim()).filter(Boolean) as string[]
+            } else if (Array.isArray(tagsValue)) {
+              tagsToMatch = tagsValue.map((t: any) => String(t).trim()).filter(Boolean) as string[]
+            }
+          }
+          console.log('Looking for news with tags:', tagsToMatch)
+          
+          let matchingNews = allNews.find(item => {
+            // Match by tags (most reliable)
+            if (tagsToMatch.length > 0 && item.tags && item.tags.length > 0) {
+              const itemTags = item.tags.map(t => t.toLowerCase().trim())
+              const searchTags = tagsToMatch.map(t => t.toLowerCase().trim())
+              const hasMatchingTag = searchTags.some(tag => itemTags.includes(tag))
+              if (hasMatchingTag) {
+                console.log('Found matching news by tags:', item.id, item.tags)
+                return true
+              }
+            }
+            return false
           })
+          
+          // If no match by tags, try by author and missing title/description (newly created)
+          if (!matchingNews) {
+            matchingNews = allNews.find(item => {
+              const authorMatch = item.author?.trim() === (news.author?.trim() || 'Teskup Team')
+              const isNewlyCreated = !item.title || !item.description // Newly created news might not have title/description yet
+              if (authorMatch && isNewlyCreated) {
+                console.log('Found matching news by author and missing title/description:', item.id)
+                return true
+              }
+              return false
+            })
+          }
           
           if (matchingNews) {
             createdNewsId = matchingNews.id
-            console.log('Found matching news with ID:', createdNewsId)
+            console.log('✓ Found matching news with ID:', createdNewsId)
           } else if (allNews.length > 0) {
             // Use the first news as fallback (likely the newest)
-            createdNewsId = allNews[0]?.id || null
-            console.log('Using first news as fallback, ID:', createdNewsId)
+            // Sort by viewCount (newest might have lowest viewCount)
+            const sortedNews = [...allNews].sort((a, b) => (a.viewCount || 0) - (b.viewCount || 0))
+            createdNewsId = sortedNews[0]?.id || null
+            console.log('⚠ Using first news (lowest viewCount) as fallback, ID:', createdNewsId)
           }
         }
+        
+        if (!createdNewsId) {
+          console.error('✗✗✗ CRITICAL: Could not find created news ID!')
+          showToast('Xəbər yaradıldı, amma ID tapıla bilmədi. Zəhmət olmasa səhifəni yeniləyin.', 'error')
+          setIsModalOpen(false)
+          return
+        }
+        
+        console.log('✓✓✓ Using news ID for AddNewsDetail:', createdNewsId)
         
         // IMPORTANT: Add news detail (title, description) to the Details array for ALL 3 languages
         // CreateNews only creates the base news, but title/description must be in Details array
@@ -932,47 +1170,109 @@ export default function AdminPanel() {
             { name: 'Russian', id: '1c9980c5-a7df-4bd7-9ef6-34eb3f2dbcac' }
           ]
           
+          console.log('========================================')
           console.log('Adding news detail for ID:', createdNewsId)
           console.log('Title:', titleToUse)
           console.log('Description:', descriptionToUse)
-          console.log('Adding details for all 3 languages in parallel:', languages.map(l => l.name))
+          console.log('Adding details for all 3 languages SEQUENTIALLY:', languages.map(l => l.name))
+          console.log('========================================')
           
-          // Add details for all languages in parallel for faster processing
-          const detailResults = await Promise.allSettled(
-            languages.map(async (lang) => {
+          // Wait a bit for backend to fully create the news before adding details
+          console.log('Waiting 1 second for backend to fully create the news...')
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          
+          // Add details for all languages SEQUENTIALLY (not parallel) to avoid race conditions
+          const successfulLanguages: string[] = []
+          const failedLanguages: string[] = []
+          
+          for (const lang of languages) {
+            const maxRetries = 5 // Increased retries
+            let lastError: any = null
+            let success = false
+            
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
               try {
-                console.log(`Adding news detail for ${lang.name}...`)
+                console.log(`\n[${lang.name}] Attempt ${attempt}/${maxRetries}...`)
+                console.log(`[${lang.name}] News ID: ${createdNewsId}`)
+                console.log(`[${lang.name}] Title: "${titleToUse}"`)
+                console.log(`[${lang.name}] Description: "${descriptionToUse}"`)
+                console.log(`[${lang.name}] LanguageId: "${lang.name}"`)
+                
                 await addNewsDetail(createdNewsId!, {
                   Title: titleToUse,
                   Description: descriptionToUse,
                   LanguageId: lang.name,
                 })
-                console.log(`News detail added successfully for ${lang.name}!`)
-                return lang.name
-              } catch (error) {
-                console.error(`Error adding news detail for ${lang.name}:`, error)
-                throw error
+                
+                // Verify that the detail was actually added by fetching it
+                console.log(`[${lang.name}] Verifying detail was added...`)
+                await new Promise(resolve => setTimeout(resolve, 500)) // Wait a bit for backend to process
+                
+                try {
+                  const verificationDetail = await getNewsDetail(createdNewsId, lang.name)
+                  console.log(`[${lang.name}] Verification - Fetched detail:`, {
+                    title: verificationDetail.title,
+                    description: verificationDetail.description,
+                  })
+                  
+                  if (verificationDetail.title && verificationDetail.description) {
+                    console.log(`✓✓✓ [${lang.name}] Verification PASSED - title and description are present!`)
+                    successfulLanguages.push(lang.name)
+                    success = true
+                    break // Success, exit retry loop
+                  } else {
+                    console.warn(`⚠ [${lang.name}] Verification FAILED - title or description is missing!`)
+                    console.warn(`[${lang.name}] Expected title: "${titleToUse}", Got: "${verificationDetail.title}"`)
+                    console.warn(`[${lang.name}] Expected description: "${descriptionToUse}", Got: "${verificationDetail.description}"`)
+                    throw new Error(`Verification failed: title or description is missing after AddNewsDetail`)
+                  }
+                } catch (verifyError: any) {
+                  console.error(`[${lang.name}] Verification error:`, verifyError)
+                  throw new Error(`AddNewsDetail succeeded but verification failed: ${verifyError?.message || 'Unknown error'}`)
+                }
+              } catch (error: any) {
+                lastError = error
+                console.error(`✗ [${lang.name}] Error (attempt ${attempt}/${maxRetries}):`, error)
+                console.error(`✗ [${lang.name}] Error message:`, error?.message)
+                
+                // If not the last attempt, wait before retrying
+                if (attempt < maxRetries) {
+                  const waitTime = attempt * 800 // Exponential backoff: 800ms, 1600ms, 2400ms, 3200ms
+                  console.log(`[${lang.name}] Waiting ${waitTime}ms before retry...`)
+                  await new Promise(resolve => setTimeout(resolve, waitTime))
+                }
               }
-            })
-          )
+            }
+            
+            if (!success) {
+              console.error(`✗✗✗ [${lang.name}] FINAL ERROR: Failed after ${maxRetries} attempts`)
+              console.error(`✗✗✗ [${lang.name}] Last error:`, lastError?.message)
+              failedLanguages.push(lang.name)
+            }
+            
+            // Wait a bit between languages to avoid overwhelming the backend
+            if (lang !== languages[languages.length - 1]) {
+              console.log(`Waiting 300ms before next language...`)
+              await new Promise(resolve => setTimeout(resolve, 300))
+            }
+          }
           
-          const failedLanguages = detailResults
-            .map((result, index) => {
-              if (result.status === 'rejected') {
-                console.error(`Error adding news detail for ${languages[index].name}:`, result.reason)
-                return languages[index].name
-              }
-              return null
-            })
-            .filter((lang): lang is string => lang !== null)
+          console.log('\n========================================')
+          console.log(`Summary: ${successfulLanguages.length}/${languages.length} languages succeeded`)
+          console.log('Successful languages:', successfulLanguages)
+          console.log('Failed languages:', failedLanguages)
+          console.log('========================================\n')
           
           if (failedLanguages.length > 0) {
-            console.warn(`Failed to add details for languages: ${failedLanguages.join(', ')}`)
-            // Don't fail the entire operation if some detail adds fail
-            showToast(`News created, but failed to add details for: ${failedLanguages.join(', ')}. Please edit the news to add title and description.`, 'warning')
+            console.warn(`✗✗✗ Failed to add details for languages: ${failedLanguages.join(', ')}`)
+            showToast(`Xəbər yaradıldı, amma bəzi dillər üçün detallar əlavə olunmadı: ${failedLanguages.join(', ')}. Zəhmət olmasa xəbəri redaktə edin.`, 'warning')
           } else {
-            console.log('News detail added successfully for all languages!')
+            console.log('✓✓✓ News detail added successfully for ALL languages!')
+            showToast('Xəbər bütün dillər üçün uğurla yaradıldı!', 'success')
           }
+        } else {
+          console.error('✗✗✗ No news ID available to add details!')
+          showToast('Xəbər yaradıldı, amma ID alına bilmədi. Zəhmət olmasa səhifəni yeniləyin və xəbəri redaktə edin.', 'warning')
         }
         
         showToast('News added successfully to database!', 'success')
@@ -1073,13 +1373,25 @@ export default function AdminPanel() {
             : (finalItem.categoryName?.trim() || 'News')
           
           // For newly created news, prioritize title and description from the form if detail fetch didn't return them
-          const titleToUse = isNewlyCreated && !finalItem.title
+          let titleToUse = isNewlyCreated && !finalItem.title
             ? (news.title?.trim() || finalItem.title?.trim() || '')
             : (finalItem.title?.trim() || '')
           
-          const descriptionToUse = isNewlyCreated && !finalItem.description
+          // If title is still empty, use fallback from tags or ID
+          if (!titleToUse && finalItem.tags && finalItem.tags.length > 0) {
+            titleToUse = finalItem.tags[0]
+          } else if (!titleToUse) {
+            titleToUse = `News ${finalItem.id.substring(0, 8)}`
+          }
+          
+          let descriptionToUse = isNewlyCreated && !finalItem.description
             ? (news.description?.trim() || finalItem.description?.trim() || '')
             : (finalItem.description?.trim() || '')
+          
+          // If description is still empty, use fallback
+          if (!descriptionToUse) {
+            descriptionToUse = titleToUse || 'No description available'
+          }
           
           const newsItem: NewsItem = {
             id: finalItem.id || '',
@@ -1378,3 +1690,4 @@ export default function AdminPanel() {
     </div>
   )
 }
+

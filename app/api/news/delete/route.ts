@@ -22,6 +22,8 @@ export async function DELETE(request: NextRequest) {
       cache: 'no-store',
     })
 
+    // HardDelete endpoint may return 200 OK with empty body or no body
+    // Check if response is ok (status 200-299)
     if (!response.ok) {
       let errorMessage = `Failed to delete news: ${response.status} ${response.statusText}`
       
@@ -29,23 +31,25 @@ export async function DELETE(request: NextRequest) {
         const responseText = await response.text()
         console.error('Backend Delete Error Response:', responseText)
         
-        try {
-          const errorData = JSON.parse(responseText)
-          if (errorData.errors) {
-            const errorText = Object.entries(errorData.errors)
-              .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
-              .join('; ')
-            errorMessage = `${errorMessage} - ${errorText}`
-          } else if (errorData.title) {
-            errorMessage = `${errorMessage} - ${errorData.title}`
-          } else if (errorData.message) {
-            errorMessage = `${errorMessage} - ${errorData.message}`
-          } else if (errorData.error) {
-            errorMessage = `${errorMessage} - ${errorData.error}`
-          }
-        } catch {
-          if (responseText) {
-            errorMessage = `${errorMessage} - ${responseText}`
+        if (responseText && responseText.trim() !== '') {
+          try {
+            const errorData = JSON.parse(responseText)
+            if (errorData.errors) {
+              const errorText = Object.entries(errorData.errors)
+                .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+                .join('; ')
+              errorMessage = `${errorMessage} - ${errorText}`
+            } else if (errorData.title) {
+              errorMessage = `${errorMessage} - ${errorData.title}`
+            } else if (errorData.message) {
+              errorMessage = `${errorMessage} - ${errorData.message}`
+            } else if (errorData.error) {
+              errorMessage = `${errorMessage} - ${errorData.error}`
+            }
+          } catch {
+            if (responseText) {
+              errorMessage = `${errorMessage} - ${responseText}`
+            }
           }
         }
       } catch (e) {
@@ -56,6 +60,24 @@ export async function DELETE(request: NextRequest) {
         { error: errorMessage },
         { status: response.status }
       )
+    }
+
+    // Response is ok - HardDelete returns 200 OK, body may be empty
+    // Try to read response body, but don't fail if it's empty
+    try {
+      const responseText = await response.text()
+      if (responseText && responseText.trim() !== '') {
+        try {
+          const responseData = JSON.parse(responseText)
+          return NextResponse.json({ success: true, ...responseData })
+        } catch {
+          // If not JSON, just return success
+          return NextResponse.json({ success: true })
+        }
+      }
+    } catch (e) {
+      // If reading response fails, still return success (200 OK means delete succeeded)
+      console.log('Response body is empty or unreadable, but status is OK - delete succeeded')
     }
 
     return NextResponse.json({ success: true })
