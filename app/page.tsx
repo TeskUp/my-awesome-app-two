@@ -1174,88 +1174,47 @@ export default function AdminPanel() {
           console.log('Adding news detail for ID:', createdNewsId)
           console.log('Title:', titleToUse)
           console.log('Description:', descriptionToUse)
-          console.log('Adding details for all 3 languages SEQUENTIALLY:', languages.map(l => l.name))
+          console.log('Adding details for all 3 languages PARALLEL:', languages.map(l => l.name))
           console.log('========================================')
           
           // Wait a bit for backend to fully create the news before adding details
-          console.log('Waiting 1 second for backend to fully create the news...')
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          console.log('Waiting 800ms for backend to fully create the news...')
+          await new Promise(resolve => setTimeout(resolve, 800))
           
-          // Add details for all languages SEQUENTIALLY (not parallel) to avoid race conditions
+          // Add details for all languages in parallel for faster execution (Vercel timeout optimization)
+          // Use Promise.allSettled to handle failures gracefully
+          console.log('Adding details for all languages in parallel...')
+          const detailPromises = languages.map(async (lang) => {
+            try {
+              console.log(`[${lang.name}] Adding news detail...`)
+              await addNewsDetail(createdNewsId!, {
+                Title: titleToUse,
+                Description: descriptionToUse,
+                LanguageId: lang.name,
+              })
+              console.log(`✓ [${lang.name}] AddNewsDetail call succeeded!`)
+              return { success: true, language: lang.name }
+            } catch (error: any) {
+              console.error(`✗ [${lang.name}] Error:`, error?.message)
+              return { success: false, language: lang.name, error: error?.message }
+            }
+          })
+          
+          const detailResults = await Promise.allSettled(detailPromises)
           const successfulLanguages: string[] = []
           const failedLanguages: string[] = []
           
-          for (const lang of languages) {
-            const maxRetries = 5 // Increased retries
-            let lastError: any = null
-            let success = false
-            
-            for (let attempt = 1; attempt <= maxRetries; attempt++) {
-              try {
-                console.log(`\n[${lang.name}] Attempt ${attempt}/${maxRetries}...`)
-                console.log(`[${lang.name}] News ID: ${createdNewsId}`)
-                console.log(`[${lang.name}] Title: "${titleToUse}"`)
-                console.log(`[${lang.name}] Description: "${descriptionToUse}"`)
-                console.log(`[${lang.name}] LanguageId: "${lang.name}"`)
-                
-                await addNewsDetail(createdNewsId!, {
-                  Title: titleToUse,
-                  Description: descriptionToUse,
-                  LanguageId: lang.name,
-                })
-                
-                // Verify that the detail was actually added by fetching it
-                console.log(`[${lang.name}] Verifying detail was added...`)
-                await new Promise(resolve => setTimeout(resolve, 500)) // Wait a bit for backend to process
-                
-                try {
-                  const verificationDetail = await getNewsDetail(createdNewsId, lang.name)
-                  console.log(`[${lang.name}] Verification - Fetched detail:`, {
-                    title: verificationDetail.title,
-                    description: verificationDetail.description,
-                  })
-                  
-                  if (verificationDetail.title && verificationDetail.description) {
-                    console.log(`✓✓✓ [${lang.name}] Verification PASSED - title and description are present!`)
-                    successfulLanguages.push(lang.name)
-                    success = true
-                    break // Success, exit retry loop
-                  } else {
-                    console.warn(`⚠ [${lang.name}] Verification FAILED - title or description is missing!`)
-                    console.warn(`[${lang.name}] Expected title: "${titleToUse}", Got: "${verificationDetail.title}"`)
-                    console.warn(`[${lang.name}] Expected description: "${descriptionToUse}", Got: "${verificationDetail.description}"`)
-                    throw new Error(`Verification failed: title or description is missing after AddNewsDetail`)
-                  }
-                } catch (verifyError: any) {
-                  console.error(`[${lang.name}] Verification error:`, verifyError)
-                  throw new Error(`AddNewsDetail succeeded but verification failed: ${verifyError?.message || 'Unknown error'}`)
-                }
-              } catch (error: any) {
-                lastError = error
-                console.error(`✗ [${lang.name}] Error (attempt ${attempt}/${maxRetries}):`, error)
-                console.error(`✗ [${lang.name}] Error message:`, error?.message)
-                
-                // If not the last attempt, wait before retrying
-                if (attempt < maxRetries) {
-                  const waitTime = attempt * 800 // Exponential backoff: 800ms, 1600ms, 2400ms, 3200ms
-                  console.log(`[${lang.name}] Waiting ${waitTime}ms before retry...`)
-                  await new Promise(resolve => setTimeout(resolve, waitTime))
-                }
+          detailResults.forEach((result, index) => {
+            if (result.status === 'fulfilled') {
+              if (result.value.success) {
+                successfulLanguages.push(result.value.language)
+              } else {
+                failedLanguages.push(result.value.language)
               }
+            } else {
+              failedLanguages.push(languages[index].name)
             }
-            
-            if (!success) {
-              console.error(`✗✗✗ [${lang.name}] FINAL ERROR: Failed after ${maxRetries} attempts`)
-              console.error(`✗✗✗ [${lang.name}] Last error:`, lastError?.message)
-              failedLanguages.push(lang.name)
-            }
-            
-            // Wait a bit between languages to avoid overwhelming the backend
-            if (lang !== languages[languages.length - 1]) {
-              console.log(`Waiting 300ms before next language...`)
-              await new Promise(resolve => setTimeout(resolve, 300))
-            }
-          }
+          })
           
           console.log('\n========================================')
           console.log(`Summary: ${successfulLanguages.length}/${languages.length} languages succeeded`)
