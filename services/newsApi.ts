@@ -1,0 +1,329 @@
+// Use Next.js API routes as proxy to avoid CORS issues
+const API_BASE_URL = '/api/news'
+const BACKEND_API_BASE_URL = 'https://teskup-production.up.railway.app/api'
+
+export interface NewsResponse {
+  id: string
+  link: string
+  coverPictureUrl: string
+  title: string
+  description: string
+  author: string
+  readTimeMinutes: number
+  categoryName: string
+  tags: string[]
+  isDeactive: boolean
+  viewCount: number
+  likeCount: number
+}
+
+export interface CreateNewsRequest {
+  Title: string
+  Description: string
+  CategoryId: string
+  TagsCsv: string
+  Author: string
+  ReadTimeMinutes: number
+  CoverPicture?: File | Blob
+  ImageUrl?: string
+  Link?: string
+  IsDeactive: boolean
+  LanguageId: string
+}
+
+// Category ID mapping - correct IDs from backend
+const CATEGORY_ID_MAP: { [key: string]: string } = {
+  'News': '164345bb-18de-4d78-97fb-9a53af74ec68', // Correct ID from backend - linked to News category
+  'Workshops': '00000000-0000-0000-0000-000000000001', // Update when you have the correct ID
+  'Technology': '00000000-0000-0000-0000-000000000002', // Update when you have the correct ID
+  'Education': '00000000-0000-0000-0000-000000000003', // Update when you have the correct ID
+  'General': '164345bb-18de-4d78-97fb-9a53af74ec68', // Default to News category ID
+}
+
+// Language ID mapping - correct IDs from backend
+const LANGUAGE_ID_MAP: { [key: string]: string } = {
+  'az': '423dfdaf-ad5b-4843-a009-3abc5261e1a0', // Azerbaijani
+  'en': '669f256a-0b60-4989-bf88-4817b50dd365', // English
+  'ru': '1c9980c5-a7df-4bd7-9ef6-34eb3f2dbcac', // Russian
+}
+
+// Default Language ID (English) - using English as default
+const DEFAULT_LANGUAGE_ID = LANGUAGE_ID_MAP['en'] || '669f256a-0b60-4989-bf88-4817b50dd365'
+
+/**
+ * Get all news articles
+ */
+export async function getAllNews(language: string = 'English'): Promise<NewsResponse[]> {
+  try {
+    // Backend expects language name like "English", not code like "en"
+    // Map language codes to names if needed
+    let languageName = language
+    if (language === 'en') {
+      languageName = 'English'
+    } else if (language === 'az') {
+      languageName = 'Azerbaijani'
+    } else if (language === 'ru') {
+      languageName = 'Russian'
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/getAll?language=${languageName}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      console.error('API Error Response:', errorData)
+      throw new Error(errorData.error || `Failed to fetch news: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    
+    // Check if response has error
+    if (data.error) {
+      throw new Error(data.error)
+    }
+
+    return Array.isArray(data) ? data : []
+  } catch (error: any) {
+    console.error('Error fetching news:', error)
+    throw error
+  }
+}
+
+/**
+ * Get news detail by ID
+ */
+export async function getNewsDetail(newsId: string, language: string = 'English'): Promise<NewsResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/getDetail?id=${newsId}&language=${language}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      console.error('API Error Response:', errorData)
+      throw new Error(errorData.error || `Failed to fetch news detail: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    
+    // Check if response has error
+    if (data.error) {
+      throw new Error(data.error)
+    }
+
+    return data
+  } catch (error: any) {
+    console.error('Error fetching news detail:', error)
+    throw error
+  }
+}
+
+/**
+ * Convert base64 string to Blob
+ */
+function base64ToBlob(base64: string, mimeType: string = 'image/png'): Blob {
+  const base64Data = base64.split(',')[1] || base64
+  const byteCharacters = atob(base64Data)
+  const byteNumbers = new Array(byteCharacters.length)
+  
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i)
+  }
+  
+  const byteArray = new Uint8Array(byteNumbers)
+  return new Blob([byteArray], { type: mimeType })
+}
+
+/**
+ * Create a new news article
+ * Returns the created news ID if available in response
+ */
+export async function createNews(request: CreateNewsRequest): Promise<{ id?: string; success: boolean }> {
+  try {
+    const formData = new FormData()
+
+    // Add text fields
+    formData.append('Title', request.Title)
+    formData.append('Description', request.Description)
+    formData.append('CategoryId', request.CategoryId)
+    formData.append('TagsCsv', request.TagsCsv)
+    formData.append('Author', request.Author)
+    formData.append('ReadTimeMinutes', request.ReadTimeMinutes.toString())
+    formData.append('IsDeactive', request.IsDeactive.toString())
+    // LanguageId should be language name (e.g., "English"), not GUID
+    // But we'll send it as provided and let the API route handle conversion
+    formData.append('LanguageId', request.LanguageId)
+    
+    // Link field is required - use placeholder URL if not provided
+    formData.append('Link', request.Link || 'https://teskup.com')
+
+    // Handle image - prioritize CoverPicture (file/blob) over ImageUrl
+    if (request.CoverPicture) {
+      // If it's a File, use it directly
+      if (request.CoverPicture instanceof File) {
+        formData.append('CoverPicture', request.CoverPicture)
+      } 
+      // If it's a Blob, convert to File
+      else if (request.CoverPicture instanceof Blob) {
+        const file = new File([request.CoverPicture], 'cover.jpg', { type: request.CoverPicture.type || 'image/jpeg' })
+        formData.append('CoverPicture', file)
+      }
+    } else if (request.ImageUrl) {
+      formData.append('ImageUrl', request.ImageUrl)
+    }
+
+    const response = await fetch(`${API_BASE_URL}/create`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      const errorMessage = errorData.error || `Failed to create news: ${response.statusText}`
+      throw new Error(errorMessage)
+    }
+
+    // Check if response has error or contains created news ID
+    const result = await response.json()
+    if (result.error) {
+      throw new Error(result.error)
+    }
+    
+    // Return result which may contain the created news ID
+    return result
+  } catch (error) {
+    console.error('Error creating news:', error)
+    throw error
+  }
+}
+
+/**
+ * Get category ID from category name
+ */
+export function getCategoryId(categoryName: string): string {
+  // Normalize category name (trim and handle empty/null)
+  const normalizedCategory = categoryName?.trim() || 'News'
+  
+  // Return the category ID if found, otherwise default to 'News' category ID
+  const categoryId = CATEGORY_ID_MAP[normalizedCategory] || CATEGORY_ID_MAP['News'] || '164345bb-18de-4d78-97fb-9a53af74ec68'
+  
+  console.log(`getCategoryId: "${categoryName}" -> "${normalizedCategory}" -> "${categoryId}"`)
+  
+  return categoryId
+}
+
+/**
+ * Delete a news article
+ */
+export async function deleteNews(newsId: string): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/delete?id=${newsId}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      const errorMessage = errorData.error || `Failed to delete news: ${response.statusText}`
+      throw new Error(errorMessage)
+    }
+
+    // Check if response has error
+    const result = await response.json()
+    if (result.error) {
+      throw new Error(result.error)
+    }
+  } catch (error) {
+    console.error('Error deleting news:', error)
+    throw error
+  }
+}
+
+/**
+ * Get default language ID
+ * Try to get from existing news first, otherwise use default
+ */
+export async function getDefaultLanguageId(): Promise<string> {
+  try {
+    // Try to get language ID from existing news
+    const news = await getAllNews('az')
+    if (news.length > 0) {
+      // If we have news, we can try to infer the language ID
+      // For now, return the default
+      return DEFAULT_LANGUAGE_ID
+    }
+  } catch (error) {
+    console.warn('Could not fetch news to determine language ID, using default')
+  }
+  return DEFAULT_LANGUAGE_ID
+}
+
+/**
+ * Get language ID synchronously (for cases where async is not possible)
+ */
+export function getDefaultLanguageIdSync(): string {
+  return DEFAULT_LANGUAGE_ID
+}
+
+/**
+ * Update a news article
+ */
+export interface UpdateNewsRequest extends CreateNewsRequest {
+  Id: string
+}
+
+export async function updateNews(request: UpdateNewsRequest): Promise<void> {
+  try {
+    const formData = new FormData()
+
+    // Add text fields
+    formData.append('Id', request.Id)
+    formData.append('Title', request.Title)
+    formData.append('Description', request.Description)
+    formData.append('CategoryId', request.CategoryId)
+    formData.append('TagsCsv', request.TagsCsv)
+    formData.append('Author', request.Author)
+    formData.append('ReadTimeMinutes', request.ReadTimeMinutes.toString())
+    formData.append('IsDeactive', request.IsDeactive.toString())
+    formData.append('LanguageId', request.LanguageId.toLowerCase())
+    formData.append('Link', request.Link || 'https://teskup.com')
+
+    // Handle image
+    if (request.CoverPicture) {
+      if (request.CoverPicture instanceof File) {
+        formData.append('CoverPicture', request.CoverPicture)
+      } else if (request.CoverPicture instanceof Blob) {
+        const file = new File([request.CoverPicture], 'cover.jpg', { type: request.CoverPicture.type || 'image/jpeg' })
+        formData.append('CoverPicture', file)
+      }
+    } else if (request.ImageUrl) {
+      formData.append('ImageUrl', request.ImageUrl)
+    }
+
+    const response = await fetch(`${API_BASE_URL}/update?id=${request.Id}`, {
+      method: 'PUT',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      const errorMessage = errorData.error || `Failed to update news: ${response.statusText}`
+      throw new Error(errorMessage)
+    }
+
+    const result = await response.json()
+    if (result.error) {
+      throw new Error(result.error)
+    }
+  } catch (error) {
+    console.error('Error updating news:', error)
+    throw error
+  }
+}
+

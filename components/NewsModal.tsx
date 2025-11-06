@@ -6,11 +6,12 @@ import { NewsItem } from '@/app/page'
 
 interface NewsModalProps {
   news: NewsItem | null
-  onSave: (news: NewsItem) => void
+  categories?: string[]
+  onSave: (news: NewsItem, imageFile?: File | string) => void
   onClose: () => void
 }
 
-export default function NewsModal({ news, onSave, onClose }: NewsModalProps) {
+export default function NewsModal({ news, categories = ['News', 'Technology', 'Education', 'Workshops'], onSave, onClose }: NewsModalProps) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -22,40 +23,57 @@ export default function NewsModal({ news, onSave, onClose }: NewsModalProps) {
   })
   const [imagePreview, setImagePreview] = useState('')
   const [isDragging, setIsDragging] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
 
   useEffect(() => {
     if (news) {
+      console.log('NewsModal: Setting form data from news:', news)
+      console.log('  - Title:', news.title)
+      console.log('  - Description:', news.description)
+      console.log('  - Category:', news.category)
+      
       setFormData({
-        title: news.title,
-        description: news.description,
-        category: news.category,
-        image: news.image,
-        tags: news.tags.join(', '),
-        author: news.author,
-        readTime: news.readTime.toString(),
+        title: news.title || '',
+        description: news.description || '',
+        category: news.category?.trim() || 'News', // Default to 'News' if empty
+        image: news.image || '',
+        tags: news.tags?.join(', ') || '',
+        author: news.author || 'Teskup Team',
+        readTime: news.readTime?.toString() || '5',
       })
-      setImagePreview(news.image)
+      setImagePreview(news.image || '')
+      setImageFile(null)
+      
+      console.log('NewsModal: Form data set:', {
+        title: news.title || '',
+        description: news.description || '',
+        category: news.category?.trim() || 'News',
+      })
     } else {
+      // For new news, default category to 'News'
       setFormData({
         title: '',
         description: '',
-        category: '',
+        category: 'News', // Default to 'News' for new news
         image: '',
         tags: '',
         author: 'Teskup Team',
         readTime: '5',
       })
       setImagePreview('')
+      setImageFile(null)
     }
   }, [news])
 
   const handleImageChange = (url: string) => {
     setFormData({ ...formData, image: url })
     setImagePreview(url)
+    setImageFile(null) // Clear file when URL is used
   }
 
   const handleFileUpload = (file: File) => {
     if (file && file.type.startsWith('image/')) {
+      setImageFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         const result = reader.result as string
@@ -95,27 +113,65 @@ export default function NewsModal({ news, onSave, onClose }: NewsModalProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Validate required fields
+    if (!formData.title || formData.title.trim() === '') {
+      alert('Please enter a title')
+      return
+    }
+    
+    if (!formData.description || formData.description.trim() === '') {
+      alert('Please enter a description')
+      return
+    }
+    
+    // Ensure category is set, default to 'News' if empty (before validation)
+    const categoryToUse = formData.category?.trim() || 'News'
+    
+    // Update formData with normalized category
+    if (!formData.category || formData.category.trim() === '') {
+      setFormData({ ...formData, category: 'News' })
+    }
+    
     // Validate that image is provided
     if (!formData.image) {
       alert('Please upload an image or enter an image URL')
       return
     }
 
+    console.log('NewsModal: Submitting form data:', {
+      title: formData.title.trim(),
+      description: formData.description.trim(),
+      category: categoryToUse,
+      author: formData.author.trim(),
+      tags: formData.tags,
+      readTime: formData.readTime,
+    })
+    
     const newsItem: NewsItem = {
       id: news?.id || Date.now().toString(),
-      title: formData.title,
-      description: formData.description,
-      category: formData.category,
+      title: formData.title.trim(), // Trim title
+      description: formData.description.trim(), // Trim description
+      category: categoryToUse, // Use normalized category
       image: formData.image,
       tags: formData.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
-      author: formData.author,
+      author: formData.author.trim() || 'Teskup Team',
       readTime: parseInt(formData.readTime) || 5,
       createdAt: news?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       views: news?.views || 0,
       comments: news?.comments || 0,
     }
-    onSave(newsItem)
+    
+    console.log('=== NewsModal: Created newsItem ===')
+    console.log('Title:', newsItem.title)
+    console.log('Description:', newsItem.description)
+    console.log('Category:', newsItem.category)
+    console.log('Author:', newsItem.author)
+    console.log('Tags:', newsItem.tags)
+    console.log('===================================')
+    // Pass image file if available, otherwise pass image URL/base64 string
+    const imageData = imageFile || formData.image
+    onSave(newsItem, imageData)
   }
 
   return (
@@ -182,15 +238,32 @@ export default function NewsModal({ news, onSave, onClose }: NewsModalProps) {
                 </label>
                 <select
                   required
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  value={formData.category || 'News'}
+                  onChange={(e) => {
+                    const selectedCategory = e.target.value || 'News'
+                    console.log('Category selected:', selectedCategory)
+                    setFormData({ ...formData, category: selectedCategory })
+                  }}
                   className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-white"
                 >
-                  <option value="">Select category...</option>
-                  <option value="Workshops">Workshops</option>
-                  <option value="Technology">Technology</option>
-                  <option value="Education">Education</option>
-                  <option value="News">News</option>
+                  {categories.length > 0 && categories.includes('News') ? (
+                    categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="News">News</option>
+                      {categories.map((category) => (
+                        category !== 'News' && (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        )
+                      ))}
+                    </>
+                  )}
                 </select>
               </div>
 

@@ -31,3 +31,62 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE and editor files
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# User files
+AppData/
+Contacts/
+Documents/
+Downloads/
+Downloads1/
+Favorites/
+Links/
+Music/
+OneDrive/
+Saved Games/
+Searches/
+Videos/
+NTUSER.DAT*
+ntuser.dat*
+ntuser.ini
+
+# Other project folders
+auth-frontend/
+html5/
+mobile/
+source/
+teskupfrontend/
+My project/
+My project1/
+
+# System folders
+.android/
+.azure/
+.designer/
+.docker/
+.dotnet/
+.expo/
+.gitconfig
+.gradle/
+.javacpp/
+.lesshst
+.librarymanager/
+.netrc
+.node_repl_history
+.nuget/
+.openshot_qt/
+.skiko/
+.ssh/
+.templateengine/

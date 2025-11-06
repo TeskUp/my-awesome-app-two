@@ -6,6 +6,7 @@ import NewsModal from '@/components/NewsModal'
 import Sidebar from '@/components/Sidebar'
 import ToastContainer, { ToastMessage } from '@/components/ToastContainer'
 import ConfirmModal from '@/components/ConfirmModal'
+import { getAllNews, getNewsDetail, createNews, updateNews, deleteNews, getCategoryId, getDefaultLanguageIdSync, NewsResponse } from '@/services/newsApi'
 
 export interface NewsItem {
   id: string
@@ -28,6 +29,7 @@ export default function AdminPanel() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingNews, setEditingNews] = useState<NewsItem | null>(null)
+  const [availableCategories, setAvailableCategories] = useState<string[]>(['News'])
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
@@ -59,12 +61,139 @@ export default function AdminPanel() {
   }
 
   useEffect(() => {
-    const stored = localStorage.getItem('newsData')
-    if (stored) {
-      const data = JSON.parse(stored)
-      setNewsData(data)
-      setFilteredNews(data)
+    const fetchNews = async () => {
+      try {
+        const response = await getAllNews('English')
+        console.log('Fetched news from API:', response)
+        
+        // Map API response to NewsItem format - use REAL data, no placeholders
+        // For items with null title/description, fetch detail from GetDetail endpoint
+        const mappedNewsPromises = response.map(async (item) => {
+          let finalItem = item
+          
+          // If title, description, or categoryName is null, fetch detail from GetDetail endpoint
+          if (!item.title || !item.description || !item.categoryName || 
+              item.title === null || item.description === null || item.categoryName === null ||
+              item.title === '' || item.description === '' || item.categoryName === '') {
+            try {
+              console.log(`Fetching detail for news ID: ${item.id} (title/description/categoryName is null or empty)`)
+              const detail = await getNewsDetail(item.id, 'English')
+              console.log('Fetched detail:', detail)
+              
+              // Merge detail data with item data, prioritizing detail data
+              finalItem = {
+                ...item,
+                title: detail.title || item.title,
+                description: detail.description || item.description,
+                categoryName: detail.categoryName || item.categoryName,
+              }
+              console.log('Final item after detail fetch:', finalItem)
+            } catch (detailError) {
+              console.error(`Error fetching detail for news ID ${item.id}:`, detailError)
+              // Continue with original item if detail fetch fails
+            }
+          }
+          
+          // Use REAL data from API - only use defaults if absolutely necessary
+          // If categoryName is still null/empty after GetDetail, default to 'News'
+          const categoryToUse = finalItem.categoryName?.trim() || 'News'
+          
+          const newsItem: NewsItem = {
+            id: finalItem.id || '',
+            // Use real title from detail if available
+            title: finalItem.title?.trim() || '',
+            // Use real description from detail if available
+            description: finalItem.description?.trim() || '',
+            // Use real category name from API or detail, default to 'News'
+            category: categoryToUse,
+            image: finalItem.coverPictureUrl || '',
+            tags: finalItem.tags || [],
+            author: finalItem.author?.trim() || 'Teskup Team',
+            readTime: finalItem.readTimeMinutes || 5,
+            createdAt: new Date().toISOString(), // API doesn't return createdAt, using current date
+            updatedAt: new Date().toISOString(),
+            views: finalItem.viewCount || 0,
+            comments: finalItem.likeCount || 0, // Using likeCount as comments for now
+          }
+          
+          console.log('Mapped news item (REAL DATA with detail):', {
+            id: newsItem.id,
+            title: newsItem.title,
+            description: newsItem.description,
+            category: newsItem.category,
+          })
+          return newsItem
+        })
+        
+        // Wait for all promises to resolve (including detail fetches)
+        const mappedNews = await Promise.all(mappedNewsPromises)
+        
+        console.log('All mapped news (REAL DATA with details):', mappedNews)
+        setNewsData(mappedNews)
+        setFilteredNews(mappedNews)
+        
+        // Extract unique categories from API response (REAL categories from backend)
+        const categories = [...new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))] as string[]
+        console.log('Available categories from API:', categories)
+        // Always include 'News' as default, then add other categories from API
+        const allCategories = categories.length > 0 
+          ? [...new Set(['News', ...categories])] 
+          : ['News']
+        setAvailableCategories(allCategories)
+        
+        // Also save to localStorage as backup
+        localStorage.setItem('newsData', JSON.stringify(mappedNews))
+      } catch (error: any) {
+        console.error('Error loading news:', error)
+        // Show toast only if component is mounted
+        const errorMessage = error?.message || 'Unknown error occurred'
+        const id = Date.now().toString()
+        setToasts((prev) => [...prev, { 
+          id, 
+          message: `Error loading news: ${errorMessage}. Using local storage.`, 
+          type: 'warning' 
+        }])
+        // Fallback to localStorage
+        const stored = localStorage.getItem('newsData')
+        if (stored) {
+          try {
+            const data = JSON.parse(stored)
+            console.log('Loaded news from localStorage:', data)
+            
+            // Use REAL data from localStorage - no placeholders
+            const mappedLocalNews: NewsItem[] = data.map((item: any) => ({
+              id: item.id || '',
+              title: item.title?.trim() || '',
+              description: item.description?.trim() || '',
+              category: item.category?.trim() || '',
+              image: item.image || '',
+              tags: item.tags || [],
+              author: item.author || '',
+              readTime: item.readTime || 0,
+              createdAt: item.createdAt || new Date().toISOString(),
+              updatedAt: item.updatedAt || new Date().toISOString(),
+              views: item.views || 0,
+              comments: item.comments || 0,
+            }))
+            
+            // Extract unique categories from localStorage data
+            const categories = [...new Set(data.map((item: any) => item.category?.trim()).filter(Boolean))] as string[]
+            // Always include 'News' as default, then add other categories
+            const allCategories = categories.length > 0 
+              ? [...new Set(['News', ...categories])] 
+              : ['News']
+            setAvailableCategories(allCategories)
+            
+            setNewsData(mappedLocalNews)
+            setFilteredNews(mappedLocalNews)
+          } catch (parseError) {
+            console.error('Error parsing localStorage data:', parseError)
+          }
+        }
+      }
     }
+    fetchNews()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -87,9 +216,92 @@ export default function AdminPanel() {
     setIsModalOpen(true)
   }
 
-  const handleEditNews = (news: NewsItem) => {
-    setEditingNews(news)
-    setIsModalOpen(true)
+  const handleEditNews = async (news: NewsItem) => {
+    // Validate that news has a valid ID
+    if (!news.id || news.id === '') {
+      showToast('Invalid news ID. Please refresh the page and try again.', 'error')
+      return
+    }
+    
+    console.log('Editing news with ID:', news.id)
+    console.log('News data:', news)
+    
+    // Verify that the news exists in the database before opening edit modal
+    try {
+      const existingNews = await getNewsDetail(news.id, 'English')
+      console.log('News exists in database:', existingNews)
+      
+      // Update news data with latest from database - prioritize detail data
+      const updatedNews: NewsItem = {
+        ...news,
+        // Use detail data if available, otherwise use existing news data
+        title: existingNews.title?.trim() || news.title?.trim() || '',
+        description: existingNews.description?.trim() || news.description?.trim() || '',
+        category: existingNews.categoryName?.trim() || news.category?.trim() || 'News', // Default to 'News' if empty
+        image: existingNews.coverPictureUrl || news.image || '',
+        tags: existingNews.tags || news.tags || [],
+        author: existingNews.author?.trim() || news.author?.trim() || 'Teskup Team',
+        readTime: existingNews.readTimeMinutes || news.readTime || 5,
+        views: existingNews.viewCount || news.views || 0,
+        comments: existingNews.likeCount || news.comments || 0,
+      }
+      
+      console.log('Updated news for edit modal:', updatedNews)
+      console.log('  - Title:', updatedNews.title)
+      console.log('  - Description:', updatedNews.description)
+      console.log('  - Category:', updatedNews.category)
+      
+      setEditingNews(updatedNews)
+      setIsModalOpen(true)
+    } catch (error: any) {
+      console.error('Error verifying news existence:', error)
+      // If news doesn't exist, show error and refresh list
+      showToast('News not found in database. Refreshing news list...', 'error')
+      
+      // Refresh news list
+      try {
+        const response = await getAllNews('English')
+        const mappedNewsPromises = response.map(async (item) => {
+          let finalItem = item
+          
+          if (!item.title || !item.description || item.title === null || item.description === null) {
+            try {
+              const detail = await getNewsDetail(item.id, 'English')
+              finalItem = {
+                ...item,
+                title: detail.title || item.title,
+                description: detail.description || item.description,
+                categoryName: detail.categoryName || item.categoryName,
+              }
+            } catch (detailError) {
+              console.error(`Error fetching detail for news ID ${item.id}:`, detailError)
+            }
+          }
+          
+          return {
+            id: finalItem.id || '',
+            title: finalItem.title?.trim() || '',
+            description: finalItem.description?.trim() || '',
+            category: finalItem.categoryName?.trim() || '',
+            image: finalItem.coverPictureUrl || '',
+            tags: finalItem.tags || [],
+            author: finalItem.author || '',
+            readTime: finalItem.readTimeMinutes || 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            views: finalItem.viewCount || 0,
+            comments: finalItem.likeCount || 0,
+          }
+        })
+        
+        const mappedNews = await Promise.all(mappedNewsPromises)
+        setNewsData(mappedNews)
+        setFilteredNews(mappedNews)
+        localStorage.setItem('newsData', JSON.stringify(mappedNews))
+      } catch (refreshError) {
+        console.error('Error refreshing news list:', refreshError)
+      }
+    }
   }
 
   const handleDeleteClick = (id: string, title: string) => {
@@ -100,14 +312,24 @@ export default function AdminPanel() {
     })
   }
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (confirmModal.newsId) {
-      const updatedNews = newsData.filter((news) => news.id !== confirmModal.newsId)
-      setNewsData(updatedNews)
-      setFilteredNews(updatedNews)
-      localStorage.setItem('newsData', JSON.stringify(updatedNews))
-      setConfirmModal({ isOpen: false, newsId: null, newsTitle: null })
-      showToast('News deleted successfully!', 'success')
+      try {
+        // Delete from backend API
+        await deleteNews(confirmModal.newsId)
+        
+        // Remove from local state
+        const updatedNews = newsData.filter((news) => news.id !== confirmModal.newsId)
+        setNewsData(updatedNews)
+        setFilteredNews(updatedNews)
+        localStorage.setItem('newsData', JSON.stringify(updatedNews))
+        
+        setConfirmModal({ isOpen: false, newsId: null, newsTitle: null })
+        showToast('News deleted successfully from database!', 'success')
+      } catch (error: any) {
+        console.error('Error deleting news:', error)
+        showToast(error?.message || 'Error deleting news. Please try again.', 'error')
+      }
     }
   }
 
@@ -115,22 +337,540 @@ export default function AdminPanel() {
     setConfirmModal({ isOpen: false, newsId: null, newsTitle: null })
   }
 
-  const handleSaveNews = (news: NewsItem) => {
+  const handleSaveNews = async (news: NewsItem, imageFile?: File | string) => {
+    // Declare newsIdToUpdate outside the if block so it's accessible in error handler
+    let newsIdToUpdate: string | null = null
+    
     if (editingNews) {
-      const updatedNews = newsData.map((item) => (item.id === news.id ? news : item))
-      setNewsData(updatedNews)
-      setFilteredNews(updatedNews)
-      localStorage.setItem('newsData', JSON.stringify(updatedNews))
-      showToast('News updated successfully!', 'success')
+      // Update existing news via API
+      try {
+        // Always use the original editing news ID
+        newsIdToUpdate = editingNews.id
+        
+        if (!newsIdToUpdate || newsIdToUpdate === '') {
+          showToast('Invalid news ID. Cannot update news.', 'error')
+          return
+        }
+        
+        console.log('=== UPDATE NEWS ===')
+        console.log('News ID to update:', newsIdToUpdate)
+        console.log('News data:', news)
+        console.log('Editing news:', editingNews)
+        
+        // Try to get news detail (optional - don't fail if it doesn't exist)
+        // This is just for logging, we'll proceed with update anyway
+        try {
+          const existingNews = await getNewsDetail(newsIdToUpdate, 'English')
+          console.log('News exists in database (from GetDetail):', existingNews)
+        } catch (detailError: any) {
+          console.warn('Could not fetch news detail (this is OK, we will still try to update):', detailError?.message)
+          // Continue with update attempt - GetDetail might fail but Update might still work
+        }
+        
+        // Ensure category is set, default to 'News' if empty
+        const categoryToUse = news.category?.trim() || 'News'
+        const categoryId = getCategoryId(categoryToUse)
+        const languageId = getDefaultLanguageIdSync()
+        
+        console.log('=== UPDATE NEWS CATEGORY ===')
+        console.log('Original category:', news.category)
+        console.log('Category to use:', categoryToUse)
+        console.log('CategoryId:', categoryId)
+        console.log('LanguageId:', languageId)
+        console.log('===========================')
+
+        // Prepare image data
+        let coverPicture: File | Blob | undefined = undefined
+        let imageUrl: string | undefined = undefined
+
+        if (imageFile instanceof File) {
+          coverPicture = imageFile
+        } else if (typeof imageFile === 'string') {
+          if (imageFile.startsWith('data:')) {
+            const base64Data = imageFile.split(',')[1] || imageFile
+            const mimeType = imageFile.match(/data:([^;]+);/)?.[1] || 'image/png'
+            const byteCharacters = atob(base64Data)
+            const byteNumbers = new Array(byteCharacters.length)
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i)
+            }
+            const byteArray = new Uint8Array(byteNumbers)
+            coverPicture = new Blob([byteArray], { type: mimeType })
+          } else {
+            imageUrl = imageFile
+          }
+        }
+
+        console.log('=== UPDATE NEWS DATA ===')
+        console.log('Title:', news.title)
+        console.log('Description:', news.description)
+        console.log('Category:', news.category)
+        console.log('CategoryId:', categoryId)
+        console.log('Author:', news.author)
+        console.log('Tags:', news.tags)
+        console.log('ReadTime:', news.readTime)
+        console.log('========================')
+        
+        // Ensure all required fields are present
+        const titleToUse = news.title?.trim() || ''
+        const descriptionToUse = news.description?.trim() || ''
+        
+        if (!titleToUse) {
+          showToast('Title is required. Please enter a title.', 'error')
+          return
+        }
+        
+        if (!descriptionToUse) {
+          showToast('Description is required. Please enter a description.', 'error')
+          return
+        }
+        
+        if (!categoryToUse || categoryToUse === '') {
+          showToast('Category is required. Please select a category.', 'error')
+          return
+        }
+        
+        console.log('=== SENDING UPDATE REQUEST ===')
+        console.log('Title:', titleToUse)
+        console.log('Description:', descriptionToUse)
+        console.log('Category:', categoryToUse)
+        console.log('CategoryId:', categoryId)
+        console.log('==============================')
+        
+        await updateNews({
+          Id: newsIdToUpdate, // Always use the original editing news ID
+          Title: titleToUse,
+          Description: descriptionToUse,
+          CategoryId: categoryId,
+          TagsCsv: news.tags?.join(',') || '',
+          Author: news.author?.trim() || 'Teskup Team',
+          ReadTimeMinutes: news.readTime || 5,
+          CoverPicture: coverPicture,
+          ImageUrl: imageUrl,
+          Link: 'https://teskup.com',
+          IsDeactive: false,
+          LanguageId: languageId,
+        })
+        
+        console.log('Update successful!')
+
+        showToast('News updated successfully in database!', 'success')
+        
+        // Wait a bit for backend to process the update (some backends need time to commit changes)
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Refresh news list from API
+        const response = await getAllNews('English')
+        console.log('Refreshed news from API after update:', response)
+        console.log('Looking for updated news ID:', newsIdToUpdate)
+        
+        // Create a map to store the updated category for the specific news item
+        const updatedCategoryMap = new Map<string, string>()
+        updatedCategoryMap.set(newsIdToUpdate, news.category)
+        
+        // Map API response to NewsItem format - ALWAYS fetch detail for the updated news item
+        const mappedNewsPromises = response.map(async (item) => {
+          let finalItem = item
+          
+          // ALWAYS fetch detail for the news item we just updated to get the latest data
+          const isUpdatedItem = item.id === newsIdToUpdate
+          
+          // Also fetch detail if title, description, or categoryName is null/empty
+          const shouldFetchDetail = isUpdatedItem || 
+                                    !item.title || !item.description || !item.categoryName || 
+                                    item.title === null || item.description === null || item.categoryName === null ||
+                                    item.title === '' || item.description === '' || item.categoryName === ''
+          
+          if (shouldFetchDetail) {
+            try {
+              console.log(`Fetching detail for news ID: ${item.id} after update (${isUpdatedItem ? 'UPDATED ITEM' : 'null/empty fields'})`)
+              const detail = await getNewsDetail(item.id, 'English')
+              console.log('Fetched detail after update:', detail)
+              
+              // Merge detail data with item data, prioritizing detail data
+              finalItem = {
+                ...item,
+                title: detail.title || item.title,
+                description: detail.description || item.description,
+                categoryName: detail.categoryName || item.categoryName,
+              }
+              console.log('Final item after detail fetch:', {
+                id: finalItem.id,
+                title: finalItem.title,
+                description: finalItem.description,
+                categoryName: finalItem.categoryName,
+              })
+            } catch (detailError) {
+              console.error(`Error fetching detail for news ID ${item.id} after update:`, detailError)
+              // Continue with original item if detail fetch fails
+            }
+          }
+          
+          // If this is the updated news item, prioritize the data from the update form
+          // Otherwise, use the category from API response or detail
+          const updatedCategory = updatedCategoryMap.get(item.id)
+          
+          // For updated item, use form data if available, otherwise use detail/API data
+          let finalTitle = finalItem.title?.trim() || ''
+          let finalDescription = finalItem.description?.trim() || ''
+          let finalCategory = finalItem.categoryName?.trim() || ''
+          
+          if (isUpdatedItem) {
+            // For updated item, prioritize detail data (from GetDetail) over form data
+            // because GetDetail returns the actual data from database after update
+            // But if detail data is still null/empty, use form data as fallback
+            finalTitle = finalItem.title?.trim() || news.title?.trim() || finalTitle
+            finalDescription = finalItem.description?.trim() || news.description?.trim() || finalDescription
+            finalCategory = finalItem.categoryName?.trim() || news.category?.trim() || updatedCategory?.trim() || finalCategory || 'News'
+            
+            console.log('=== UPDATED ITEM DATA ===')
+            console.log('Detail title:', finalItem.title)
+            console.log('Form title:', news.title)
+            console.log('Final title:', finalTitle)
+            console.log('Detail description:', finalItem.description)
+            console.log('Form description:', news.description)
+            console.log('Final description:', finalDescription)
+            console.log('Detail categoryName:', finalItem.categoryName)
+            console.log('Form category:', news.category)
+            console.log('Final category:', finalCategory)
+            console.log('=========================')
+          } else {
+            // For other items, use detail/API data
+            finalCategory = updatedCategory?.trim() || finalCategory || 'News'
+          }
+          
+          const newsItem: NewsItem = {
+            id: finalItem.id || '',
+            title: finalTitle,
+            description: finalDescription,
+            category: finalCategory,
+            image: finalItem.coverPictureUrl || '',
+            tags: finalItem.tags || [],
+            author: finalItem.author?.trim() || 'Teskup Team',
+            readTime: finalItem.readTimeMinutes || 5,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            views: finalItem.viewCount || 0,
+            comments: finalItem.likeCount || 0,
+          }
+          console.log('Mapped news item after update:', {
+            id: newsItem.id,
+            title: newsItem.title,
+            description: newsItem.description,
+            category: newsItem.category,
+            isUpdatedItem,
+          })
+          return newsItem
+        })
+        
+        const mappedNews = await Promise.all(mappedNewsPromises)
+        
+        // Also update categories list - use categories from mapped news (which includes detail data)
+        const categories = [...new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))] as string[]
+        const allCategories = categories.length > 0 
+          ? [...new Set(['News', ...categories])] 
+          : ['News']
+        setAvailableCategories(allCategories)
+        
+        setNewsData(mappedNews)
+        setFilteredNews(mappedNews)
+        localStorage.setItem('newsData', JSON.stringify(mappedNews))
+        
+        setIsModalOpen(false)
+        setEditingNews(null)
+      } catch (error: any) {
+        console.error('=== ERROR UPDATING NEWS ===')
+        console.error('Error object:', error)
+        console.error('Error message:', error?.message)
+        console.error('Error stack:', error?.stack)
+        console.error('News ID:', newsIdToUpdate || 'unknown')
+        console.error('News data:', news)
+        console.error('Editing news ID:', editingNews?.id || 'unknown')
+        console.error('===========================')
+        
+        const errorMessage = error?.message || 'Error updating news. Please try again.'
+        
+        // Use newsIdToUpdate if available, otherwise use editingNews.id
+        const updateNewsId = newsIdToUpdate || editingNews?.id || null
+        
+        // Check for specific error types
+        const isNotFoundError = errorMessage.includes('not found') || 
+                                errorMessage.includes('expected to affect 1 row') ||
+                                errorMessage.includes('404') ||
+                                errorMessage.includes('No rows affected')
+        
+        if (isNotFoundError) {
+          console.warn('News might not exist in database, but trying to refresh list anyway...')
+          
+          // Try to refresh news list to see current state
+          try {
+            const response = await getAllNews('English')
+            const mappedNewsPromises = response.map(async (item) => {
+              let finalItem = item
+              
+              // Check if this is the news we tried to update
+              if (updateNewsId && item.id === updateNewsId) {
+                console.log('Found the news we tried to update in the list:', item)
+              }
+              
+              if (!item.title || !item.description || item.title === null || item.description === null) {
+                try {
+                  const detail = await getNewsDetail(item.id, 'English')
+                  finalItem = {
+                    ...item,
+                    title: detail.title || item.title,
+                    description: detail.description || item.description,
+                    categoryName: detail.categoryName || item.categoryName,
+                  }
+                } catch (detailError) {
+                  console.error(`Error fetching detail for news ID ${item.id}:`, detailError)
+                }
+              }
+              
+              return {
+                id: finalItem.id || '',
+                title: finalItem.title?.trim() || '',
+                description: finalItem.description?.trim() || '',
+                category: finalItem.categoryName?.trim() || 'News',
+                image: finalItem.coverPictureUrl || '',
+                tags: finalItem.tags || [],
+                author: finalItem.author?.trim() || 'Teskup Team',
+                readTime: finalItem.readTimeMinutes || 5,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                views: finalItem.viewCount || 0,
+                comments: finalItem.likeCount || 0,
+              }
+            })
+            
+            const mappedNews = await Promise.all(mappedNewsPromises)
+            
+            // Check if the news still exists in the list
+            const newsStillExists = updateNewsId ? mappedNews.some(item => item.id === updateNewsId) : false
+            
+            if (newsStillExists) {
+              // News exists, so the update might have actually succeeded
+              // Refresh the list and show success message
+              setNewsData(mappedNews)
+              setFilteredNews(mappedNews)
+              localStorage.setItem('newsData', JSON.stringify(mappedNews))
+              showToast('News updated successfully!', 'success')
+              setIsModalOpen(false)
+              setEditingNews(null)
+            } else {
+              // News doesn't exist, show error
+              setNewsData(mappedNews)
+              setFilteredNews(mappedNews)
+              localStorage.setItem('newsData', JSON.stringify(mappedNews))
+              showToast('News not found in database. The news may have been deleted. Please refresh the page.', 'error')
+              setIsModalOpen(false)
+              setEditingNews(null)
+            }
+          } catch (refreshError) {
+            console.error('Error refreshing news list:', refreshError)
+            showToast('Error updating news. Please refresh the page and try again.', 'error')
+          }
+        } else {
+          // Other errors - show the error message with more details
+          console.error('Update error (not not found):', errorMessage)
+          // Show a more user-friendly error message
+          const userFriendlyMessage = errorMessage.includes('Failed to update news') 
+            ? errorMessage 
+            : `Failed to update news: ${errorMessage}`
+          showToast(userFriendlyMessage, 'error')
+        }
+      }
     } else {
-      const updatedNews = [...newsData, news]
-      setNewsData(updatedNews)
-      setFilteredNews(updatedNews)
-      localStorage.setItem('newsData', JSON.stringify(updatedNews))
-      showToast('News added successfully!', 'success')
+      // Create new news via API
+      try {
+        // Ensure category is set, default to 'News' if empty
+        const categoryToUse = news.category?.trim() || 'News'
+        const categoryId = getCategoryId(categoryToUse)
+        const languageId = getDefaultLanguageIdSync()
+        
+        console.log('=== CREATE NEWS CATEGORY ===')
+        console.log('Original category from news:', news.category)
+        console.log('Category to use:', categoryToUse)
+        console.log('CategoryId (should be 164345bb-18de-4d78-97fb-9a53af74ec68 for News):', categoryId)
+        console.log('LanguageId:', languageId)
+        console.log('============================')
+        
+        // Validate category ID
+        if (!categoryId || categoryId === '') {
+          showToast('Invalid category. Please select a valid category.', 'error')
+          return
+        }
+
+        // Prepare image data
+        let coverPicture: File | Blob | undefined = undefined
+        let imageUrl: string | undefined = undefined
+
+        if (imageFile instanceof File) {
+          coverPicture = imageFile
+        } else if (typeof imageFile === 'string') {
+          if (imageFile.startsWith('data:')) {
+            // Base64 image - convert to Blob
+            const base64Data = imageFile.split(',')[1] || imageFile
+            const mimeType = imageFile.match(/data:([^;]+);/)?.[1] || 'image/png'
+            const byteCharacters = atob(base64Data)
+            const byteNumbers = new Array(byteCharacters.length)
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i)
+            }
+            const byteArray = new Uint8Array(byteNumbers)
+            coverPicture = new Blob([byteArray], { type: mimeType })
+          } else {
+            // Regular URL
+            imageUrl = imageFile
+          }
+        }
+
+        console.log('=== CREATE NEWS DATA ===')
+        console.log('Title:', news.title)
+        console.log('Description:', news.description)
+        console.log('Category:', news.category)
+        console.log('CategoryId:', categoryId)
+        console.log('Author:', news.author)
+        console.log('Tags:', news.tags)
+        console.log('ReadTime:', news.readTime)
+        console.log('========================')
+        
+        // Ensure all required fields are present
+        const titleToUse = news.title?.trim() || ''
+        const descriptionToUse = news.description?.trim() || ''
+        
+        if (!titleToUse) {
+          showToast('Title is required. Please enter a title.', 'error')
+          return
+        }
+        
+        if (!descriptionToUse) {
+          showToast('Description is required. Please enter a description.', 'error')
+          return
+        }
+        
+        if (!categoryToUse || categoryToUse === '') {
+          showToast('Category is required. Please select a category.', 'error')
+          return
+        }
+        
+        console.log('=== SENDING CREATE REQUEST ===')
+        console.log('Title:', titleToUse)
+        console.log('Description:', descriptionToUse)
+        console.log('Category:', categoryToUse)
+        console.log('CategoryId:', categoryId)
+        console.log('==============================')
+        
+        const createResult = await createNews({
+          Title: titleToUse,
+          Description: descriptionToUse,
+          CategoryId: categoryId,
+          TagsCsv: news.tags?.join(',') || '',
+          Author: news.author?.trim() || 'Teskup Team',
+          ReadTimeMinutes: news.readTime || 5,
+          CoverPicture: coverPicture,
+          ImageUrl: imageUrl,
+          Link: 'https://teskup.com', // Required field - placeholder URL
+          IsDeactive: false,
+          LanguageId: languageId,
+        })
+
+        console.log('CreateNews result:', createResult)
+        
+        showToast('News added successfully to database!', 'success')
+        
+        // Get the created news ID if available, otherwise fetch all news and find the latest
+        let createdNewsId: string | null = createResult.id || null
+        
+        // If we don't have the ID from response, fetch all news and get the latest one
+        if (!createdNewsId) {
+          console.log('No ID in CreateNews response, fetching all news to find the latest...')
+          const allNews = await getAllNews('English')
+          // The latest news should be the first one (most recently created)
+          // But to be safe, we'll fetch detail for all items with null title/description
+          createdNewsId = allNews[0]?.id || null
+        }
+        
+        // Refresh news list from API
+        const response = await getAllNews('English')
+        console.log('Refreshed news from API after create:', response)
+        
+        // Map API response to NewsItem format - fetch detail for items with null title/description/categoryName
+        const mappedNewsPromises = response.map(async (item) => {
+          let finalItem = item
+          
+          // Always fetch detail for the newly created news, or if title/description/categoryName is null
+          const shouldFetchDetail = 
+            (createdNewsId && item.id === createdNewsId) ||
+            !item.title || !item.description || !item.categoryName || 
+            item.title === null || item.description === null || item.categoryName === null ||
+            item.title === '' || item.description === '' || item.categoryName === ''
+          
+          if (shouldFetchDetail) {
+            try {
+              console.log(`Fetching detail for news ID: ${item.id} after create (title/description/categoryName is null or empty, or is newly created)`)
+              const detail = await getNewsDetail(item.id, 'English')
+              console.log('Fetched detail after create:', detail)
+              
+              // Merge detail data with item data, prioritizing detail data
+              finalItem = {
+                ...item,
+                title: detail.title || item.title,
+                description: detail.description || item.description,
+                categoryName: detail.categoryName || item.categoryName,
+              }
+            } catch (detailError) {
+              console.error(`Error fetching detail for news ID ${item.id} after create:`, detailError)
+              // Continue with original item if detail fetch fails
+            }
+          }
+          
+          // Use created category if API doesn't return it, otherwise use API categoryName or detail categoryName
+          const categoryToUse = finalItem.categoryName?.trim() || news.category?.trim() || 'News'
+          
+          const newsItem: NewsItem = {
+            id: finalItem.id || '',
+            title: finalItem.title?.trim() || '',
+            description: finalItem.description?.trim() || '',
+            category: categoryToUse,
+            image: finalItem.coverPictureUrl || '',
+            tags: finalItem.tags || [],
+            author: finalItem.author?.trim() || 'Teskup Team',
+            readTime: finalItem.readTimeMinutes || 5,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            views: finalItem.viewCount || 0,
+            comments: finalItem.likeCount || 0,
+          }
+          console.log('Mapped news item after create:', newsItem)
+          console.log('  - Item ID:', item.id)
+          console.log('  - API categoryName:', item.categoryName)
+          console.log('  - Detail categoryName:', finalItem.categoryName)
+          console.log('  - Created category from form:', news.category)
+          console.log('  - Final category:', categoryToUse)
+          return newsItem
+        })
+        
+        const mappedNews = await Promise.all(mappedNewsPromises)
+        
+        // Also update categories list - use categories from mapped news (which includes detail data)
+        const categories = [...new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))] as string[]
+        const allCategories = categories.length > 0 
+          ? [...new Set(['News', ...categories])] 
+          : ['News']
+        setAvailableCategories(allCategories)
+        
+        setNewsData(mappedNews)
+        setFilteredNews(mappedNews)
+        localStorage.setItem('newsData', JSON.stringify(mappedNews))
+        
+        setIsModalOpen(false)
+        setEditingNews(null)
+      } catch (error: any) {
+        console.error('Error creating news:', error)
+        showToast(error?.message || 'Error creating news. Please try again.', 'error')
+      }
     }
-    setIsModalOpen(false)
-    setEditingNews(null)
   }
 
   const formatDate = (dateString: string) => {
@@ -273,17 +1013,26 @@ export default function AdminPanel() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="font-semibold text-gray-900">{news.title}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-gray-600 max-w-md truncate" title={news.description}>
-                            {news.description}
+                          <div className="font-semibold text-gray-900 min-w-[150px]">
+                            {news.title || <span className="text-gray-400 italic">No title</span>}
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700">
-                            {news.category}
-                          </span>
+                          <div 
+                            className="text-gray-600 max-w-md truncate" 
+                            title={news.description || ''}
+                          >
+                            {news.description || <span className="text-gray-400 italic">No description</span>}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          {news.category ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 min-w-[80px]">
+                              {news.category}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 italic text-xs">No category</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-gray-600 text-sm">
                           {formatDate(news.createdAt)}
@@ -320,6 +1069,7 @@ export default function AdminPanel() {
       {isModalOpen && (
         <NewsModal
           news={editingNews}
+          categories={availableCategories}
           onSave={handleSaveNews}
           onClose={() => {
             setIsModalOpen(false)
