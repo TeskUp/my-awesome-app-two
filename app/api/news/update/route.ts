@@ -124,16 +124,21 @@ export async function PUT(request: NextRequest) {
       formData.set('ImageUrl', imageUrl)
     }
     
-    // Create Details array as required by the API
+    // Create Details array as required by the API for ALL 3 languages
     // Details should be an array of objects with: id, title, description, languageId
-    const detailsArray = [
-      {
-        id: id,
-        title: title,
-        description: description,
-        languageId: languageId, // Use the converted language name (e.g., "English")
-      }
+    // Add details for English, Azerbaijani, and Russian so it works in all languages
+    const languages = [
+      { name: 'English', id: '669f256a-0b60-4989-bf88-4817b50dd365' },
+      { name: 'Azerbaijani', id: '423dfdaf-ad5b-4843-a009-3abc5261e1a0' },
+      { name: 'Russian', id: '1c9980c5-a7df-4bd7-9ef6-34eb3f2dbcac' }
     ]
+    
+    const detailsArray = languages.map(lang => ({
+      id: id,
+      title: title,
+      description: description,
+      languageId: lang.name, // Use language name (e.g., "English", "Azerbaijani", "Russian")
+    }))
     
     // Append Details array as JSON string
     // Backend expects Details as array<object> in multipart/form-data

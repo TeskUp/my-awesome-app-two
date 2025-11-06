@@ -6,7 +6,7 @@ import NewsModal from '@/components/NewsModal'
 import Sidebar from '@/components/Sidebar'
 import ToastContainer, { ToastMessage } from '@/components/ToastContainer'
 import ConfirmModal from '@/components/ConfirmModal'
-import { getAllNews, getNewsDetail, createNews, updateNews, deleteNews, getCategoryId, getDefaultLanguageIdSync, NewsResponse } from '@/services/newsApi'
+import { getAllNews, getNewsDetail, createNews, updateNews, deleteNews, addNewsDetail, getCategoryId, getDefaultLanguageIdSync, NewsResponse } from '@/services/newsApi'
 
 export interface NewsItem {
   id: string
@@ -77,17 +77,42 @@ export default function AdminPanel() {
               item.title === '' || item.description === '' || item.categoryName === '') {
             try {
               console.log(`Fetching detail for news ID: ${item.id} (title/description/categoryName is null or empty)`)
-              const detail = await getNewsDetail(item.id, 'English')
-              console.log('Fetched detail:', detail)
               
-              // Merge detail data with item data, prioritizing detail data
-              finalItem = {
-                ...item,
-                title: detail.title || item.title,
-                description: detail.description || item.description,
-                categoryName: detail.categoryName || item.categoryName,
+              // Try to fetch detail for all 3 languages to get the best available data
+              const languages = ['English', 'Azerbaijani', 'Russian']
+              let bestDetail: NewsResponse | null = null
+              
+              for (const lang of languages) {
+                try {
+                  const detail = await getNewsDetail(item.id, lang)
+                  console.log(`Fetched detail for ${lang}:`, detail)
+                  
+                  // Use the first language that has title and description
+                  if (detail.title && detail.description) {
+                    bestDetail = detail
+                    break
+                  }
+                  
+                  // If no best detail yet, use this one as fallback
+                  if (!bestDetail) {
+                    bestDetail = detail
+                  }
+                } catch (langError) {
+                  console.warn(`Error fetching detail for ${lang}:`, langError)
+                  // Continue to next language
+                }
               }
-              console.log('Final item after detail fetch:', finalItem)
+              
+              if (bestDetail) {
+                // Merge detail data with item data, prioritizing detail data
+                finalItem = {
+                  ...item,
+                  title: bestDetail.title || item.title,
+                  description: bestDetail.description || item.description,
+                  categoryName: bestDetail.categoryName || item.categoryName,
+                }
+                console.log('Final item after detail fetch (best available):', finalItem)
+              }
             } catch (detailError) {
               console.error(`Error fetching detail for news ID ${item.id}:`, detailError)
               // Continue with original item if detail fetch fails
@@ -266,12 +291,36 @@ export default function AdminPanel() {
           
           if (!item.title || !item.description || item.title === null || item.description === null) {
             try {
-              const detail = await getNewsDetail(item.id, 'English')
-              finalItem = {
-                ...item,
-                title: detail.title || item.title,
-                description: detail.description || item.description,
-                categoryName: detail.categoryName || item.categoryName,
+              // Try to fetch detail for all 3 languages to get the best available data
+              const languages = ['English', 'Azerbaijani', 'Russian']
+              let bestDetail: NewsResponse | null = null
+              
+              for (const lang of languages) {
+                try {
+                  const detail = await getNewsDetail(item.id, lang)
+                  
+                  // Use the first language that has title and description
+                  if (detail.title && detail.description) {
+                    bestDetail = detail
+                    break
+                  }
+                  
+                  // If no best detail yet, use this one as fallback
+                  if (!bestDetail) {
+                    bestDetail = detail
+                  }
+                } catch (langError) {
+                  // Continue to next language
+                }
+              }
+              
+              if (bestDetail) {
+                finalItem = {
+                  ...item,
+                  title: bestDetail.title || item.title,
+                  description: bestDetail.description || item.description,
+                  categoryName: bestDetail.categoryName || item.categoryName,
+                }
               }
             } catch (detailError) {
               console.error(`Error fetching detail for news ID ${item.id}:`, detailError)
@@ -484,22 +533,47 @@ export default function AdminPanel() {
           if (shouldFetchDetail) {
             try {
               console.log(`Fetching detail for news ID: ${item.id} after update (${isUpdatedItem ? 'UPDATED ITEM' : 'null/empty fields'})`)
-              const detail = await getNewsDetail(item.id, 'English')
-              console.log('Fetched detail after update:', detail)
               
-              // Merge detail data with item data, prioritizing detail data
-              finalItem = {
-                ...item,
-                title: detail.title || item.title,
-                description: detail.description || item.description,
-                categoryName: detail.categoryName || item.categoryName,
+              // Try to fetch detail for all 3 languages to get the best available data
+              const languages = ['English', 'Azerbaijani', 'Russian']
+              let bestDetail: NewsResponse | null = null
+              
+              for (const lang of languages) {
+                try {
+                  const detail = await getNewsDetail(item.id, lang)
+                  console.log(`Fetched detail for ${lang} after update:`, detail)
+                  
+                  // Use the first language that has title and description
+                  if (detail.title && detail.description) {
+                    bestDetail = detail
+                    break
+                  }
+                  
+                  // If no best detail yet, use this one as fallback
+                  if (!bestDetail) {
+                    bestDetail = detail
+                  }
+                } catch (langError) {
+                  console.warn(`Error fetching detail for ${lang} after update:`, langError)
+                  // Continue to next language
+                }
               }
-              console.log('Final item after detail fetch:', {
-                id: finalItem.id,
-                title: finalItem.title,
-                description: finalItem.description,
-                categoryName: finalItem.categoryName,
-              })
+              
+              if (bestDetail) {
+                // Merge detail data with item data, prioritizing detail data
+                finalItem = {
+                  ...item,
+                  title: bestDetail.title || item.title,
+                  description: bestDetail.description || item.description,
+                  categoryName: bestDetail.categoryName || item.categoryName,
+                }
+                console.log('Final item after detail fetch (best available):', {
+                  id: finalItem.id,
+                  title: finalItem.title,
+                  description: finalItem.description,
+                  categoryName: finalItem.categoryName,
+                })
+              }
             } catch (detailError) {
               console.error(`Error fetching detail for news ID ${item.id} after update:`, detailError)
               // Continue with original item if detail fetch fails
@@ -686,13 +760,14 @@ export default function AdminPanel() {
         // Ensure category is set, default to 'News' if empty
         const categoryToUse = news.category?.trim() || 'News'
         const categoryId = getCategoryId(categoryToUse)
-        const languageId = getDefaultLanguageIdSync()
+        // LanguageId should be language name (e.g., "English") for AddNewsDetail
+        const languageId = 'English' // Default to English
         
         console.log('=== CREATE NEWS CATEGORY ===')
         console.log('Original category from news:', news.category)
         console.log('Category to use:', categoryToUse)
         console.log('CategoryId (should be 164345bb-18de-4d78-97fb-9a53af74ec68 for News):', categoryId)
-        console.log('LanguageId:', languageId)
+        console.log('LanguageId (language name):', languageId)
         console.log('============================')
         
         // Validate category ID
@@ -777,8 +852,6 @@ export default function AdminPanel() {
 
         console.log('CreateNews result:', createResult)
         
-        showToast('News added successfully to database!', 'success')
-        
         // Get the created news ID if available, otherwise fetch all news and find the latest
         let createdNewsId: string | null = createResult.id || null
         
@@ -787,9 +860,57 @@ export default function AdminPanel() {
           console.log('No ID in CreateNews response, fetching all news to find the latest...')
           const allNews = await getAllNews('English')
           // The latest news should be the first one (most recently created)
-          // But to be safe, we'll fetch detail for all items with null title/description
           createdNewsId = allNews[0]?.id || null
         }
+        
+        // IMPORTANT: Add news detail (title, description) to the Details array for ALL 3 languages
+        // CreateNews only creates the base news, but title/description must be in Details array
+        // Add details for English, Azerbaijani, and Russian so it works in all languages
+        if (createdNewsId) {
+          const languages = [
+            { name: 'English', id: '669f256a-0b60-4989-bf88-4817b50dd365' },
+            { name: 'Azerbaijani', id: '423dfdaf-ad5b-4843-a009-3abc5261e1a0' },
+            { name: 'Russian', id: '1c9980c5-a7df-4bd7-9ef6-34eb3f2dbcac' }
+          ]
+          
+          console.log('Adding news detail for ID:', createdNewsId)
+          console.log('Title:', titleToUse)
+          console.log('Description:', descriptionToUse)
+          console.log('Adding details for all 3 languages:', languages.map(l => l.name))
+          
+          // Add details for all languages in parallel
+          const detailResults = await Promise.allSettled(
+            languages.map(async (lang) => {
+              await addNewsDetail(createdNewsId, {
+                Title: titleToUse,
+                Description: descriptionToUse,
+                LanguageId: lang.name, // Use language name (e.g., "English", "Azerbaijani", "Russian")
+              })
+              console.log(`News detail added successfully for ${lang.name}!`)
+              return lang.name
+            })
+          )
+          
+          const failedLanguages = detailResults
+            .map((result, index) => {
+              if (result.status === 'rejected') {
+                console.error(`Error adding news detail for ${languages[index].name}:`, result.reason)
+                return languages[index].name
+              }
+              return null
+            })
+            .filter((lang): lang is string => lang !== null)
+          
+          if (failedLanguages.length > 0) {
+            console.warn(`Failed to add details for languages: ${failedLanguages.join(', ')}`)
+            // Don't fail the entire operation if some detail adds fail
+            showToast(`News created, but failed to add details for: ${failedLanguages.join(', ')}. Please edit the news to add title and description.`, 'warning')
+          } else {
+            console.log('News detail added successfully for all languages!')
+          }
+        }
+        
+        showToast('News added successfully to database!', 'success')
         
         // Refresh news list from API
         const response = await getAllNews('English')
@@ -809,15 +930,41 @@ export default function AdminPanel() {
           if (shouldFetchDetail) {
             try {
               console.log(`Fetching detail for news ID: ${item.id} after create (title/description/categoryName is null or empty, or is newly created)`)
-              const detail = await getNewsDetail(item.id, 'English')
-              console.log('Fetched detail after create:', detail)
               
-              // Merge detail data with item data, prioritizing detail data
-              finalItem = {
-                ...item,
-                title: detail.title || item.title,
-                description: detail.description || item.description,
-                categoryName: detail.categoryName || item.categoryName,
+              // Try to fetch detail for all 3 languages to get the best available data
+              const languages = ['English', 'Azerbaijani', 'Russian']
+              let bestDetail: NewsResponse | null = null
+              
+              for (const lang of languages) {
+                try {
+                  const detail = await getNewsDetail(item.id, lang)
+                  console.log(`Fetched detail for ${lang}:`, detail)
+                  
+                  // Use the first language that has title and description
+                  if (detail.title && detail.description) {
+                    bestDetail = detail
+                    break
+                  }
+                  
+                  // If no best detail yet, use this one as fallback
+                  if (!bestDetail) {
+                    bestDetail = detail
+                  }
+                } catch (langError) {
+                  console.warn(`Error fetching detail for ${lang}:`, langError)
+                  // Continue to next language
+                }
+              }
+              
+              if (bestDetail) {
+                // Merge detail data with item data, prioritizing detail data
+                finalItem = {
+                  ...item,
+                  title: bestDetail.title || item.title,
+                  description: bestDetail.description || item.description,
+                  categoryName: bestDetail.categoryName || item.categoryName,
+                }
+                console.log('Final item after detail fetch (best available):', finalItem)
               }
             } catch (detailError) {
               console.error(`Error fetching detail for news ID ${item.id} after create:`, detailError)

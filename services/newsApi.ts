@@ -272,6 +272,43 @@ export function getDefaultLanguageIdSync(): string {
 }
 
 /**
+ * Add news detail (title, description) to a news article
+ */
+export interface AddNewsDetailRequest {
+  Title: string
+  Description: string
+  LanguageId: string
+}
+
+export async function addNewsDetail(newsId: string, request: AddNewsDetailRequest): Promise<void> {
+  try {
+    const formData = new FormData()
+    formData.append('Title', request.Title)
+    formData.append('Description', request.Description)
+    formData.append('LanguageId', request.LanguageId)
+
+    const response = await fetch(`${API_BASE_URL}/addDetail?id=${newsId}`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      const errorMessage = errorData.error || `Failed to add news detail: ${response.statusText}`
+      throw new Error(errorMessage)
+    }
+
+    const result = await response.json()
+    if (result.error) {
+      throw new Error(result.error)
+    }
+  } catch (error) {
+    console.error('Error adding news detail:', error)
+    throw error
+  }
+}
+
+/**
  * Update a news article
  */
 export interface UpdateNewsRequest extends CreateNewsRequest {
