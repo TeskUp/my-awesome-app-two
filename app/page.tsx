@@ -63,8 +63,39 @@ export default function AdminPanel() {
   useEffect(() => {
     const fetchNews = async () => {
       try {
-        const response = await getAllNews('English')
-        console.log('Fetched news from API:', response)
+        // Fetch news from all languages in parallel to get the best data
+        const languages = ['English', 'Azerbaijani', 'Russian']
+        console.log('Fetching news from all languages:', languages)
+        
+        const allLanguageResponses = await Promise.allSettled(
+          languages.map(lang => getAllNews(lang))
+        )
+        
+        // Combine all news from all languages, prioritizing English
+        const allNewsMap = new Map<string, NewsResponse>()
+        
+        // Process responses in order: English first, then Azerbaijani, then Russian
+        for (let i = 0; i < allLanguageResponses.length; i++) {
+          const result = allLanguageResponses[i]
+          if (result.status === 'fulfilled') {
+            const news = result.value
+            news.forEach((item: NewsResponse) => {
+              // If news item doesn't exist or current item has better data (title/description), use it
+              const existing = allNewsMap.get(item.id)
+              if (!existing || (!existing.title && item.title) || (!existing.description && item.description)) {
+                allNewsMap.set(item.id, item)
+              } else if (existing && item.title && item.description) {
+                // If both have data, prefer the one with more complete data
+                if ((!existing.title || !existing.description) && item.title && item.description) {
+                  allNewsMap.set(item.id, item)
+                }
+              }
+            })
+          }
+        }
+        
+        const response = Array.from(allNewsMap.values())
+        console.log('Fetched news from all languages, total unique items:', response.length)
         
         // Map API response to NewsItem format - use REAL data, no placeholders
         // For items with null title/description, fetch detail from GetDetail endpoint
@@ -154,8 +185,19 @@ export default function AdminPanel() {
         const mappedNews = await Promise.all(mappedNewsPromises)
         
         console.log('All mapped news (REAL DATA with details):', mappedNews)
-        setNewsData(mappedNews)
-        setFilteredNews(mappedNews)
+        console.log('Total mapped news items:', mappedNews.length)
+        console.log('News IDs:', mappedNews.map(n => n.id))
+        
+        // Sort by creation date (newest first) - newly created news should appear first
+        // Note: createdNewsId is only available in handleSaveNews, not in fetchNews
+        const sortedNews = [...mappedNews].sort((a, b) => {
+          // Sort by date (newest first)
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        })
+        
+        console.log('Sorted news items:', sortedNews.length)
+        setNewsData(sortedNews)
+        setFilteredNews(sortedNews)
         
         // Extract unique categories from API response (REAL categories from backend)
         const categories = Array.from(new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
@@ -855,12 +897,29 @@ export default function AdminPanel() {
         // Get the created news ID if available, otherwise fetch all news and find the latest
         let createdNewsId: string | null = createResult.id || null
         
-        // If we don't have the ID from response, fetch all news and get the latest one
+        // If we don't have the ID from response, try to get it quickly
         if (!createdNewsId) {
-          console.log('No ID in CreateNews response, fetching all news to find the latest...')
+          console.log('No ID in CreateNews response, fetching all news to find the newly created one...')
+          
+          // Fetch from English first (fastest)
           const allNews = await getAllNews('English')
-          // The latest news should be the first one (most recently created)
-          createdNewsId = allNews[0]?.id || null
+          console.log('Fetched all news, count:', allNews.length)
+          
+          // Find the news that matches our created news (by author and recent creation)
+          const matchingNews = allNews.find(item => {
+            const authorMatch = item.author?.trim() === (news.author?.trim() || 'Teskup Team')
+            // Check if it's a recently created news (might not have title/description yet)
+            return authorMatch
+          })
+          
+          if (matchingNews) {
+            createdNewsId = matchingNews.id
+            console.log('Found matching news with ID:', createdNewsId)
+          } else if (allNews.length > 0) {
+            // Use the first news as fallback (likely the newest)
+            createdNewsId = allNews[0]?.id || null
+            console.log('Using first news as fallback, ID:', createdNewsId)
+          }
         }
         
         // IMPORTANT: Add news detail (title, description) to the Details array for ALL 3 languages
@@ -876,18 +935,24 @@ export default function AdminPanel() {
           console.log('Adding news detail for ID:', createdNewsId)
           console.log('Title:', titleToUse)
           console.log('Description:', descriptionToUse)
-          console.log('Adding details for all 3 languages:', languages.map(l => l.name))
+          console.log('Adding details for all 3 languages in parallel:', languages.map(l => l.name))
           
-          // Add details for all languages in parallel
+          // Add details for all languages in parallel for faster processing
           const detailResults = await Promise.allSettled(
             languages.map(async (lang) => {
-              await addNewsDetail(createdNewsId, {
-                Title: titleToUse,
-                Description: descriptionToUse,
-                LanguageId: lang.name, // Use language name (e.g., "English", "Azerbaijani", "Russian")
-              })
-              console.log(`News detail added successfully for ${lang.name}!`)
-              return lang.name
+              try {
+                console.log(`Adding news detail for ${lang.name}...`)
+                await addNewsDetail(createdNewsId!, {
+                  Title: titleToUse,
+                  Description: descriptionToUse,
+                  LanguageId: lang.name,
+                })
+                console.log(`News detail added successfully for ${lang.name}!`)
+                return lang.name
+              } catch (error) {
+                console.error(`Error adding news detail for ${lang.name}:`, error)
+                throw error
+              }
             })
           )
           
@@ -912,9 +977,37 @@ export default function AdminPanel() {
         
         showToast('News added successfully to database!', 'success')
         
-        // Refresh news list from API
-        const response = await getAllNews('English')
-        console.log('Refreshed news from API after create:', response)
+        // Refresh news list from API - fetch from all languages in parallel
+        console.log('Refreshing news list after create...')
+        const languages = ['English', 'Azerbaijani', 'Russian']
+        
+        const allLanguageResponses = await Promise.allSettled(
+          languages.map(lang => getAllNews(lang))
+        )
+        
+        // Combine all news from all languages
+        const allNewsMap = new Map<string, NewsResponse>()
+        
+        for (let i = 0; i < allLanguageResponses.length; i++) {
+          const result = allLanguageResponses[i]
+          if (result.status === 'fulfilled') {
+            const news = result.value
+            news.forEach((item: NewsResponse) => {
+              const existing = allNewsMap.get(item.id)
+              if (!existing || (!existing.title && item.title) || (!existing.description && item.description)) {
+                allNewsMap.set(item.id, item)
+              } else if (existing && item.title && item.description) {
+                if ((!existing.title || !existing.description) && item.title && item.description) {
+                  allNewsMap.set(item.id, item)
+                }
+              }
+            })
+          }
+        }
+        
+        const response = Array.from(allNewsMap.values())
+        console.log('Refreshed news from all languages after create:', response.length)
+        console.log('Total news items:', response.length)
         
         // Map API response to NewsItem format - fetch detail for items with null title/description/categoryName
         const mappedNewsPromises = response.map(async (item) => {
@@ -973,12 +1066,25 @@ export default function AdminPanel() {
           }
           
           // Use created category if API doesn't return it, otherwise use API categoryName or detail categoryName
-          const categoryToUse = finalItem.categoryName?.trim() || news.category?.trim() || 'News'
+          // For newly created news, prioritize the category from the form
+          const isNewlyCreated = createdNewsId && item.id === createdNewsId
+          const categoryToUse = isNewlyCreated
+            ? (news.category?.trim() || finalItem.categoryName?.trim() || 'News')
+            : (finalItem.categoryName?.trim() || 'News')
+          
+          // For newly created news, prioritize title and description from the form if detail fetch didn't return them
+          const titleToUse = isNewlyCreated && !finalItem.title
+            ? (news.title?.trim() || finalItem.title?.trim() || '')
+            : (finalItem.title?.trim() || '')
+          
+          const descriptionToUse = isNewlyCreated && !finalItem.description
+            ? (news.description?.trim() || finalItem.description?.trim() || '')
+            : (finalItem.description?.trim() || '')
           
           const newsItem: NewsItem = {
             id: finalItem.id || '',
-            title: finalItem.title?.trim() || '',
-            description: finalItem.description?.trim() || '',
+            title: titleToUse,
+            description: descriptionToUse,
             category: categoryToUse,
             image: finalItem.coverPictureUrl || '',
             tags: finalItem.tags || [],
@@ -989,27 +1095,57 @@ export default function AdminPanel() {
             views: finalItem.viewCount || 0,
             comments: finalItem.likeCount || 0,
           }
-          console.log('Mapped news item after create:', newsItem)
-          console.log('  - Item ID:', item.id)
-          console.log('  - API categoryName:', item.categoryName)
-          console.log('  - Detail categoryName:', finalItem.categoryName)
-          console.log('  - Created category from form:', news.category)
-          console.log('  - Final category:', categoryToUse)
+          
+          // Log newly created news for debugging
+          if (isNewlyCreated) {
+            console.log('=== NEWLY CREATED NEWS ITEM ===')
+            console.log('ID:', newsItem.id)
+            console.log('Title:', newsItem.title)
+            console.log('Description:', newsItem.description)
+            console.log('Category:', newsItem.category)
+            console.log('===============================')
+          } else {
+            console.log('Mapped news item after create:', {
+              id: newsItem.id,
+              title: newsItem.title,
+              description: newsItem.description,
+              category: newsItem.category
+            })
+          }
           return newsItem
         })
         
         const mappedNews = await Promise.all(mappedNewsPromises)
         
+        console.log('All mapped news (REAL DATA with details):', mappedNews)
+        console.log('Total mapped news items:', mappedNews.length)
+        console.log('News IDs:', mappedNews.map(n => n.id))
+        
+        // Sort by creation date (newest first) - newly created news should appear first
+        const sortedNews = [...mappedNews].sort((a, b) => {
+          // If we have createdNewsId, prioritize it
+          if (createdNewsId) {
+            if (a.id === createdNewsId) return -1
+            if (b.id === createdNewsId) return 1
+          }
+          // Otherwise sort by date (newest first)
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        })
+        
+        console.log('Sorted news items:', sortedNews.length)
+        console.log('First news item ID:', sortedNews[0]?.id)
+        console.log('Created news ID:', createdNewsId)
+        
         // Also update categories list - use categories from mapped news (which includes detail data)
-        const categories = Array.from(new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
+        const categories = Array.from(new Set(sortedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
         const allCategories = categories.length > 0 
           ? Array.from(new Set(['News', ...categories])) 
           : ['News']
         setAvailableCategories(allCategories)
         
-        setNewsData(mappedNews)
-        setFilteredNews(mappedNews)
-        localStorage.setItem('newsData', JSON.stringify(mappedNews))
+        setNewsData(sortedNews)
+        setFilteredNews(sortedNews)
+        localStorage.setItem('newsData', JSON.stringify(sortedNews))
         
         setIsModalOpen(false)
         setEditingNews(null)

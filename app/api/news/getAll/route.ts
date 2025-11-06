@@ -76,7 +76,23 @@ export async function GET(request: NextRequest) {
     try {
       // Try to parse as JSON
       const data = JSON.parse(text)
-      return NextResponse.json(Array.isArray(data) ? data : [])
+      const newsArray = Array.isArray(data) ? data : []
+      
+      // Log the number of news items received from backend
+      console.log(`Received ${newsArray.length} news items from backend`)
+      console.log('News IDs:', newsArray.map((item: any) => item.id))
+      
+      // Filter out inactive news if needed (but don't limit the count)
+      // Only filter if explicitly requested, otherwise return all news
+      const activeNews = newsArray.filter((item: any) => !item.isDeactive)
+      
+      // Log filtered news count
+      if (activeNews.length !== newsArray.length) {
+        console.log(`Filtered to ${activeNews.length} active news items (removed ${newsArray.length - activeNews.length} inactive)`)
+      }
+      
+      // Return all active news (no limit)
+      return NextResponse.json(activeNews)
     } catch (parseError) {
       console.error('Failed to parse response as JSON:', text)
       return NextResponse.json(
