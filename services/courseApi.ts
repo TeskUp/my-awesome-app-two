@@ -83,6 +83,7 @@ export interface CourseResponse {
   };
   isPurchased: boolean;
   thumbnail?: string;
+  imageUrl?: string; // Alias for thumbnail (backward compatibility)
   progress?: {
     percentage: number;
     completedLessons: number;
@@ -179,6 +180,60 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+// Course card type for list view (matches CourseCardDTO from backend)
+export interface CourseCard {
+  id: string;
+  title: string;
+  category: string;
+  description?: string;
+  thumbnail?: string;
+  instructor: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
+  progress?: number | null;
+  duration: string;
+  students: number;
+  rating: number;
+  price: number;
+  lessons: number;
+  status: 'ongoing' | 'register' | 'completed' | 'Register';
+}
+
+/**
+ * Get all courses (for course list page)
+ * Backend: GET /api/courses
+ */
+export async function getAllCourses(params?: {
+  search?: string;
+  category?: string;
+  difficulty?: 'Beginner' | 'Novice' | 'Intermediate' | 'Proficient' | 'Advanced';
+  price?: string;
+  status?: string;
+}): Promise<CourseCard[]> {
+  try {
+    console.log(`[getAllCourses] Fetching courses with params:`, params);
+
+    const queryParams = new URLSearchParams();
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.category) queryParams.append('category', params.category);
+    if (params?.difficulty) queryParams.append('difficulty', params.difficulty);
+    if (params?.price) queryParams.append('price', params.price);
+    if (params?.status) queryParams.append('status', params.status);
+
+    const queryString = queryParams.toString();
+    const url = `/courses${queryString ? `?${queryString}` : ''}`;
+
+    const response = await http<CourseCard[]>(url);
+    console.log(`[getAllCourses] ✓ Found ${response.length} courses`);
+    return response;
+  } catch (error: any) {
+    console.error(`[getAllCourses] ✗✗✗ ERROR:`, error);
+    throw error;
+  }
+}
+
 /**
  * Get all available UsedLanguages
  * Backend: GET /api/UsedLanguages/GetAll
@@ -222,6 +277,11 @@ export async function getCourseDetail(
         description: response.description,
         languageId: language,
       }];
+    }
+
+    // Add imageUrl alias for backward compatibility
+    if (!response.imageUrl && response.thumbnail) {
+      response.imageUrl = response.thumbnail;
     }
 
     console.log(`[getCourseDetail] ✓ Success`);
