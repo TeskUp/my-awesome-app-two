@@ -18,27 +18,27 @@ export async function POST(request: NextRequest) {
     const incomingFormData = await request.formData()
     const formData = new FormData()
 
-    // Map fields to backend format
-    const title = incomingFormData.get('Title')
-    if (title) formData.append('Title', String(title))
+    // Map fields to backend format - extract values once
+    const titleValue = incomingFormData.get('Title')
+    if (titleValue) formData.append('Title', String(titleValue))
     
-    const description = incomingFormData.get('Description')
-    if (description) formData.append('Description', String(description))
+    const descriptionValue = incomingFormData.get('Description')
+    if (descriptionValue) formData.append('Description', String(descriptionValue))
     
-    const durationSeconds = incomingFormData.get('DurationSeconds')
-    if (durationSeconds) formData.append('DurationSeconds', String(durationSeconds))
+    const durationSecondsValue = incomingFormData.get('DurationSeconds')
+    if (durationSecondsValue) formData.append('DurationSeconds', String(durationSecondsValue))
     
-    const order = incomingFormData.get('Order')
-    if (order) formData.append('Order', String(order))
+    const orderValue = incomingFormData.get('Order')
+    if (orderValue) formData.append('Order', String(orderValue))
     
-    const isLocked = incomingFormData.get('IsLocked')
-    if (isLocked !== null) formData.append('IsLocked', String(isLocked))
+    const isLockedValue = incomingFormData.get('IsLocked')
+    if (isLockedValue !== null) formData.append('IsLocked', String(isLockedValue))
     
-    const translationAvailable = incomingFormData.get('TranslationAvailable')
-    if (translationAvailable !== null) formData.append('TranslationAvailable', String(translationAvailable))
+    const translationAvailableValue = incomingFormData.get('TranslationAvailable')
+    if (translationAvailableValue !== null) formData.append('TranslationAvailable', String(translationAvailableValue))
     
-    const videoUrl = incomingFormData.get('VideoUrl')
-    if (videoUrl) formData.append('VideoUrl', String(videoUrl))
+    const videoUrlValue = incomingFormData.get('VideoUrl')
+    if (videoUrlValue) formData.append('VideoUrl', String(videoUrlValue))
     
     // Handle Video file
     const video = incomingFormData.get('Video')
@@ -114,13 +114,14 @@ export async function POST(request: NextRequest) {
         
         // Map backend response to frontend format
         if (responseData.id) {
-          const title = incomingFormData.get('Title')?.toString() || ''
-          const description = incomingFormData.get('Description')?.toString() || ''
-          const durationSeconds = parseInt(incomingFormData.get('DurationSeconds')?.toString() || '0')
-          const order = parseInt(incomingFormData.get('Order')?.toString() || '0')
-          const isLocked = incomingFormData.get('IsLocked')?.toString() === 'true'
-          const translationAvailable = incomingFormData.get('TranslationAvailable')?.toString() === 'true'
-          const videoUrl = incomingFormData.get('VideoUrl')?.toString() || ''
+          // Use already extracted values
+          const title = titleValue?.toString() || ''
+          const description = descriptionValue?.toString() || ''
+          const durationSeconds = parseInt(durationSecondsValue?.toString() || '0')
+          const order = parseInt(orderValue?.toString() || '0')
+          const isLocked = isLockedValue?.toString() === 'true'
+          const translationAvailable = translationAvailableValue?.toString() === 'true'
+          const videoUrl = videoUrlValue?.toString() || ''
           
           return NextResponse.json({
             id: responseData.id,
@@ -143,13 +144,14 @@ export async function POST(request: NextRequest) {
     }
     
     // If response doesn't have id, return with generated data
-    const title = incomingFormData.get('Title')?.toString() || ''
-    const description = incomingFormData.get('Description')?.toString() || ''
-    const durationSeconds = parseInt(incomingFormData.get('DurationSeconds')?.toString() || '0')
-    const order = parseInt(incomingFormData.get('Order')?.toString() || '0')
-    const isLocked = incomingFormData.get('IsLocked')?.toString() === 'true'
-    const translationAvailable = incomingFormData.get('TranslationAvailable')?.toString() === 'true'
-    const videoUrl = incomingFormData.get('VideoUrl')?.toString() || ''
+    // Use already extracted values
+    const title = titleValue?.toString() || ''
+    const description = descriptionValue?.toString() || ''
+    const durationSeconds = parseInt(durationSecondsValue?.toString() || '0')
+    const order = parseInt(orderValue?.toString() || '0')
+    const isLocked = isLockedValue?.toString() === 'true'
+    const translationAvailable = translationAvailableValue?.toString() === 'true'
+    const videoUrl = videoUrlValue?.toString() || ''
     
     return NextResponse.json({
       id: responseData.id || `temp-${Date.now()}`,
