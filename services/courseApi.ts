@@ -22,6 +22,8 @@ export interface CourseResponse {
   details?: CourseDetail[]
   durationMinutes?: number
   rating?: number
+  createdAt?: string
+  updatedAt?: string
 }
 
 // Language ID mapping - using provided language ID
@@ -125,7 +127,7 @@ export async function addCourseDetail(courseId: string, request: AddCourseDetail
       let errorData: any = { error: 'Unknown error' }
       try {
         errorData = JSON.parse(responseText)
-      } catch {
+        } catch {
         errorData = { error: responseText || `Failed to add course detail: ${response.statusText}` }
       }
       
@@ -150,7 +152,7 @@ export async function addCourseDetail(courseId: string, request: AddCourseDetail
       console.error(`[addCourseDetail] Result contains error:`, result.error)
       throw new Error(result.error)
     }
-    
+
     console.log(`[addCourseDetail] ✓ Successfully added course detail for ${request.LanguageId}`)
   } catch (error: any) {
     console.error(`[addCourseDetail] ✗ Error adding course detail for ${request.LanguageId}:`, error)
@@ -221,7 +223,7 @@ export async function updateCourseDetail(courseId: string, request: AddCourseDet
       console.error(`[updateCourseDetail] Result contains error:`, result.error)
       throw new Error(result.error)
     }
-    
+
     console.log(`[updateCourseDetail] ✓ Successfully updated course detail for ${request.LanguageId}`)
   } catch (error: any) {
     console.error(`[updateCourseDetail] ✗ Error updating course detail for ${request.LanguageId}:`, error)
@@ -370,7 +372,7 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
 
     console.log(`[updateCourse] Sending PUT request to: ${API_BASE_URL}/update?id=${request.id}`)
     console.log(`[updateCourse] FormData keys:`, Array.from(formData.keys()))
-    
+
     // Use Next.js API route as proxy
     const response = await fetch(`${API_BASE_URL}/update?id=${request.id}`, {
       method: 'PUT',
@@ -393,9 +395,9 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
         
         if (errorData.errors) {
           const errorText = Object.entries(errorData.errors)
-            .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
-            .join('; ')
-          errorMessage = `${errorMessage} - ${errorText}`
+                .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+                .join('; ')
+              errorMessage = `${errorMessage} - ${errorText}`
         } else if (errorData.title) {
           errorMessage = `${errorMessage} - ${errorData.title}`
         } else if (errorData.message) {
@@ -404,18 +406,18 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
           errorMessage = errorData.error
         } else if (errorData.originalError) {
           errorMessage = errorData.originalError
-        }
-      } catch (parseError) {
+            }
+          } catch (parseError) {
         console.error(`[updateCourse] Failed to parse error response:`, parseError)
         if (responseText) {
-          errorMessage = `${errorMessage} - ${responseText}`
+            errorMessage = `${errorMessage} - ${responseText}`
         }
       }
       
       console.error(`[updateCourse] ✗✗✗ ERROR: ${errorMessage}`)
       throw new Error(errorMessage)
     }
-    
+
     // Parse success response
     let responseData: any = { success: true, message: 'Course updated successfully' }
     
