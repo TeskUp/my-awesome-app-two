@@ -9,6 +9,27 @@ export interface AddCourseDetailRequest {
   LanguageId: 'English' | 'Azerbaijani' | 'Russian';
 }
 
+export interface UpdateCourseRequest {
+  CategoryId: string;
+  Level: 'Beginner' | 'Novice' | 'Intermediate' | 'Proficient' | 'Advanced';
+  IsFree: boolean;
+  Price: number;
+  InstructorId: string;
+  UsedLanguageId: string;
+  Rating: number;
+  DurationMinutes: number;
+  Thumbnail?: File | null;
+  Title?: string;
+  Description?: string;
+  LanguageId?: 'English' | 'Azerbaijani' | 'Russian';
+}
+
+export interface UsedLanguage {
+  id: string;
+  isoCode: string;
+  isDeactive: boolean;
+}
+
 /**
  * Helper function to get auth token from localStorage
  */
@@ -26,7 +47,6 @@ function getAuthToken(): string | null {
  */
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     'Accept': 'application/json',
   };
 
@@ -34,6 +54,11 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Only add Content-Type for JSON, not for FormData
+  if (init?.body && !(init.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
   }
 
   // Merge any additional headers
@@ -76,6 +101,193 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
+ * Get all available UsedLanguages
+ * Backend: GET /api/UsedLanguages/GetAll
+ */
+export async function getUsedLanguages(): Promise<UsedLanguage[]> {
+  try {
+    console.log(`[getUsedLanguages] Fetching available languages...`);
+    const languages = await http<UsedLanguage[]>(`/UsedLanguages/GetAll`);
+    const activeLanguages = languages.filter(lang => !lang.isDeactive);
+    console.log(`[getUsedLanguages] Found ${activeLanguages.length} active languages`);
+    return activeLanguages;
+  } catch (error: any) {
+    console.error(`[getUsedLanguages] ✗ Error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Update course
+ * Backend: PUT /api/admin/courses/{id}
+ * 
+ * IMPORTANT: Make sure UsedLanguageId exists in database before calling this!
+ */
+export async function updateCourse(
+  courseId: string,
+  request: UpdateCourseRequest
+): Promise<void> {
+  try {
+    console.log(`[updateCourse] === UPDATING COURSE ===`);
+    console.log(`[updateCourse] Course ID: ${courseId}`);
+    console.log(`[updateCourse] IsFree: ${request.IsFree}`);
+    console.log(`[updateCourse] Price: ${request.Price}`);
+    console.log(`[updateCourse] CategoryId: ${request.CategoryId}`);
+    console.log(`[updateCourse] Level: ${request.Level}`);
+    console.log(`[updateCourse] InstructorId: ${request.InstructorId}`);
+    console.log(`[updateCourse] UsedLanguageId: ${request.UsedLanguageId}`);
+    console.log(`[updateCourse] Rating: ${request.Rating}`);
+    console.log(`[updateCourse] DurationMinutes: ${request.DurationMinutes}`);
+    console.log(`[updateCourse] Has Image: ${!!request.Thumbnail}`);
+
+    // Validate required fields
+    if (!courseId) {
+      throw new Error('Course ID is required');
+    }
+    if (!request.CategoryId) {
+      throw new Error('CategoryId is required');
+    }
+    if (!request.InstructorId) {
+      throw new Error('InstructorId is required');
+    }
+    if (!request.UsedLanguageId) {
+      throw new Error('UsedLanguageId is required');
+    }
+
+    // Validate UsedLanguageId exists (fetch and check)
+    const availableLanguages = await getUsedLanguages();
+    const languageExists = availableLanguages.some(lang => lang.id === request.UsedLanguageId);
+    
+    if (!languageExists) {
+      const availableIds = availableLanguages.map(l => l.id).join(', ');
+      throw new Error(
+        `Invalid UsedLanguageId: ${request.UsedLanguageId}. ` +
+        `Available IDs: ${availableIds || 'None found'}. ` +
+        `Please select a valid language from the dropdown.`
+      );
+    }
+
+    // Create FormData for multipart/form-data
+    const formData = new FormData();
+    formData.append('CategoryId', request.CategoryId);
+    formData.append('Level', request.Level);
+    formData.append('IsFree', request.IsFree.toString());
+    formData.append('Price', request.Price.toString());
+    formData.append('InstructorId', request.InstructorId);
+    formData.append('UsedLanguageId', request.UsedLanguageId);
+    formData.append('Rating', request.Rating.toString());
+    formData.append('DurationMinutes', request.DurationMinutes.toString());
+
+    // Add optional fields if provided
+    if (request.Title) {
+      formData.append('Title', request.Title);
+    }
+    if (request.Description) {
+      formData.append('Description', request.Description);
+    }
+    if (request.LanguageId) {
+      formData.append('LanguageId', request.LanguageId);
+    }
+
+    // Only add Thumbnail if provided
+    if (request.Thumbnail) {
+      formData.append('Thumbnail', request.Thumbnail);
+      console.log(`[updateCourse] Including Thumbnail: ${request.Thumbnail.name}`);
+    } else {
+      console.log(`[updateCourse] No image provided - not sending Thumbnail field`);
+    }
+
+    // Log FormData keys for debugging
+    const formDataKeys: string[] = [];
+    formData.forEach((_, key) => formDataKeys.push(key));
+    console.log(`[updateCourse] FormData keys:`, formDataKeys);
+
+    // Correct endpoint: PUT /api/admin/courses/{id}
+    const url = `/admin/courses/${courseId}`;
+    console.log(`[updateCourse] Sending PUT request to: ${BACKEND_API_BASE_URL}${url}`);
+
+    const response = await http<{ message: string }>(url, {
+      method: 'PUT',
+      body: formData, // FormData, not JSON
+    });
+
+    console.log(`[updateCourse] ✓ Success:`, response);
+  } catch (error: any) {
+    console.error(`[updateCourse] ✗✗✗ ERROR:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Create course
+ * Backend: POST /api/admin/courses
+ */
+export async function createCourse(request: UpdateCourseRequest): Promise<{ id: string; message: string }> {
+  try {
+    console.log(`[createCourse] === CREATING COURSE ===`);
+
+    // Validate required fields
+    if (!request.CategoryId) {
+      throw new Error('CategoryId is required');
+    }
+    if (!request.InstructorId) {
+      throw new Error('InstructorId is required');
+    }
+    if (!request.UsedLanguageId) {
+      throw new Error('UsedLanguageId is required');
+    }
+
+    // Validate UsedLanguageId exists
+    const availableLanguages = await getUsedLanguages();
+    const languageExists = availableLanguages.some(lang => lang.id === request.UsedLanguageId);
+    
+    if (!languageExists) {
+      const availableIds = availableLanguages.map(l => l.id).join(', ');
+      throw new Error(
+        `Invalid UsedLanguageId: ${request.UsedLanguageId}. ` +
+        `Available IDs: ${availableIds || 'None found'}. ` +
+        `Please select a valid language from the dropdown.`
+      );
+    }
+
+    // Create FormData
+    const formData = new FormData();
+    formData.append('CategoryId', request.CategoryId);
+    formData.append('Level', request.Level);
+    formData.append('IsFree', request.IsFree.toString());
+    formData.append('Price', request.Price.toString());
+    formData.append('InstructorId', request.InstructorId);
+    formData.append('UsedLanguageId', request.UsedLanguageId);
+    formData.append('Rating', request.Rating.toString());
+    formData.append('DurationMinutes', request.DurationMinutes.toString());
+
+    if (request.Title) {
+      formData.append('Title', request.Title);
+    }
+    if (request.Description) {
+      formData.append('Description', request.Description);
+    }
+    if (request.LanguageId) {
+      formData.append('LanguageId', request.LanguageId);
+    }
+    if (request.Thumbnail) {
+      formData.append('Thumbnail', request.Thumbnail);
+    }
+
+    const response = await http<{ id: string; message: string }>(`/admin/courses`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    console.log(`[createCourse] ✓ Success:`, response);
+    return response;
+  } catch (error: any) {
+    console.error(`[createCourse] ✗✗✗ ERROR:`, error);
+    throw error;
+  }
+}
+
+/**
  * Add course detail (title, description) to a course
  * Backend: POST /api/admin/courses/{courseId}/details
  */
@@ -86,7 +298,6 @@ export async function addCourseDetail(
   try {
     console.log(`[addCourseDetail] Starting for courseId: ${courseId}, language: ${request.LanguageId}`);
 
-    // Validate input
     if (!courseId) {
       throw new Error('Course ID is required');
     }
@@ -100,16 +311,11 @@ export async function addCourseDetail(
       throw new Error('LanguageId is required');
     }
 
-    // Backend expects: { Title, Description, LanguageId }
-    // LanguageId should be enum string: "English", "Azerbaijani", or "Russian"
     const requestBody = {
       Title: request.Title.trim(),
       Description: request.Description.trim(),
-      LanguageId: request.LanguageId, // "English", "Azerbaijani", "Russian"
+      LanguageId: request.LanguageId,
     };
-
-    console.log(`[addCourseDetail] Sending POST to: ${BACKEND_API_BASE_URL}/admin/courses/${courseId}/details`);
-    console.log(`[addCourseDetail] Request body:`, requestBody);
 
     const response = await http<{ message: string }>(
       `/admin/courses/${courseId}/details`,
@@ -137,7 +343,6 @@ export async function updateCourseDetail(
   try {
     console.log(`[updateCourseDetail] Starting for courseId: ${courseId}, language: ${request.LanguageId}`);
 
-    // Validate input
     if (!courseId) {
       throw new Error('Course ID is required');
     }
@@ -151,16 +356,11 @@ export async function updateCourseDetail(
       throw new Error('LanguageId is required');
     }
 
-    // Backend expects: { Title, Description, LanguageId }
-    // LanguageId should be enum string: "English", "Azerbaijani", or "Russian"
     const requestBody = {
       Title: request.Title.trim(),
       Description: request.Description.trim(),
-      LanguageId: request.LanguageId, // "English", "Azerbaijani", "Russian"
+      LanguageId: request.LanguageId,
     };
-
-    console.log(`[updateCourseDetail] Sending PUT to: ${BACKEND_API_BASE_URL}/admin/courses/${courseId}/details`);
-    console.log(`[updateCourseDetail] Request body:`, requestBody);
 
     const response = await http<{ message: string }>(
       `/admin/courses/${courseId}/details`,
