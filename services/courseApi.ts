@@ -108,11 +108,14 @@ export interface CourseResponse {
     }>;
   }>;
   // Optional: For backward compatibility with frontend code that expects details array
-  details?: Array<{
-    title: string;
-    description: string;
-    languageId?: string;
-  }>;
+  details?: CourseDetail[];
+}
+
+// Course detail item type (for details array)
+export interface CourseDetail {
+  title: string;
+  description: string;
+  languageId?: string;
 }
 
 /**
