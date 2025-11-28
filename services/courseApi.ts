@@ -89,6 +89,7 @@ export interface CourseResponse {
   price?: number; // For backward compatibility (not in backend response)
   usedLanguageId?: string; // For backward compatibility (not in backend response)
   createdAt?: string; // For backward compatibility (not in backend response)
+  driveLink?: string; // For backward compatibility (not in backend response)
   progress?: {
     percentage: number;
     completedLessons: number;
@@ -264,6 +265,7 @@ export async function getAllCourses(params?: {
       price: card.price,
       usedLanguageId: getDefaultLanguageId(), // Default to English
       createdAt: new Date().toISOString(), // Default to current date
+      driveLink: '', // CourseCard doesn't include driveLink, set to empty string
       progress: card.progress !== null && card.progress !== undefined
         ? {
             percentage: card.progress,
@@ -360,6 +362,11 @@ export async function getCourseDetail(
     // Add createdAt for backward compatibility (not in backend response, set default)
     if (!response.createdAt) {
       response.createdAt = new Date().toISOString(); // Default to current date
+    }
+
+    // Add driveLink for backward compatibility (not in backend response, set default)
+    if (!response.driveLink) {
+      response.driveLink = ''; // Default to empty string
     }
 
     console.log(`[getCourseDetail] ✓ Success`);
