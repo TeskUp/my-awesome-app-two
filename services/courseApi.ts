@@ -212,6 +212,7 @@ export interface CourseCard {
 /**
  * Get all courses (for course list page)
  * Backend: GET /api/courses
+ * Returns CourseResponse[] for compatibility with frontend that expects CourseResponse
  */
 export async function getAllCourses(params?: {
   search?: string;
@@ -219,7 +220,7 @@ export async function getAllCourses(params?: {
   difficulty?: 'Beginner' | 'Novice' | 'Intermediate' | 'Proficient' | 'Advanced';
   price?: string;
   status?: string;
-}): Promise<CourseCard[]> {
+}): Promise<CourseResponse[]> {
   try {
     console.log(`[getAllCourses] Fetching courses with params:`, params);
 
@@ -233,8 +234,53 @@ export async function getAllCourses(params?: {
     const queryString = queryParams.toString();
     const url = `/courses${queryString ? `?${queryString}` : ''}`;
 
-    const response = await http<CourseCard[]>(url);
-    console.log(`[getAllCourses] ✓ Found ${response.length} courses`);
+    // Backend returns CourseCardDTO[], transform to CourseResponse[] for frontend compatibility
+    const cards = await http<CourseCard[]>(url);
+    console.log(`[getAllCourses] ✓ Found ${cards.length} courses`);
+
+    // Transform CourseCard to CourseResponse
+    const response: CourseResponse[] = cards.map((card) => ({
+      id: card.id,
+      category: card.category,
+      title: card.title,
+      description: card.description || '',
+      instructor: {
+        id: card.instructor.id,
+        name: card.instructor.name,
+        avatar: card.instructor.avatar,
+      },
+      stats: {
+        duration: card.duration,
+        students: card.students,
+        rating: card.rating,
+        lessonsCount: card.lessons,
+        level: '', // CourseCard doesn't have level, will need to be populated from backend
+      },
+      isPurchased: card.status === 'ongoing' || card.status === 'completed',
+      thumbnail: card.thumbnail,
+      imageUrl: card.thumbnail, // Alias for backward compatibility
+      levelId: '', // Will need to be populated from backend
+      isFree: card.price === 0, // Infer from price
+      price: card.price,
+      usedLanguageId: getDefaultLanguageId(), // Default to English
+      createdAt: new Date().toISOString(), // Default to current date
+      progress: card.progress !== null && card.progress !== undefined
+        ? {
+            percentage: card.progress,
+            completedLessons: 0, // Not available in CourseCard
+            totalLessons: card.lessons,
+          }
+        : undefined,
+      sections: [], // CourseCard doesn't include sections
+      details: [
+        {
+          title: card.title,
+          description: card.description || '',
+          languageId: getDefaultLanguageId(),
+        },
+      ],
+    }));
+
     return response;
   } catch (error: any) {
     console.error(`[getAllCourses] ✗✗✗ ERROR:`, error);
