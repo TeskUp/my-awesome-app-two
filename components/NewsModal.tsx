@@ -11,7 +11,13 @@ interface NewsModalProps {
   onClose: () => void
 }
 
-export default function NewsModal({ news, categories = ['News', 'Technology', 'Education', 'Workshops'], onSave, onClose }: NewsModalProps) {
+export default function NewsModal({
+  news,
+  // Fallback siyahı: psychology / programming / proqramlasdirma
+  categories = ['psychology', 'programming', 'proqramlasdirma'],
+  onSave,
+  onClose,
+}: NewsModalProps) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -50,11 +56,12 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
         category: news.category?.trim() || 'News',
       })
     } else {
-      // For new news, default category to 'News'
+      // Yeni xəbər üçün default kateqoriya: siyahının ilk elementi (psychology)
+      const defaultCategory = categories[0] || 'psychology'
       setFormData({
         title: '',
         description: '',
-        category: 'News', // Default to 'News' for new news
+        category: defaultCategory,
         image: '',
         tags: '',
         author: 'Teskup Team',
@@ -124,12 +131,12 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
       return
     }
     
-    // Ensure category is set, default to 'News' if empty (before validation)
-    const categoryToUse = formData.category?.trim() || 'News'
+    // Ensure category is set, default to ilk kateqoriya (məs: psychology) əgər boşdursa
+    const categoryToUse = formData.category?.trim() || categories[0] || ''
     
     // Update formData with normalized category
     if (!formData.category || formData.category.trim() === '') {
-      setFormData({ ...formData, category: 'News' })
+      setFormData({ ...formData, category: categories[0] || 'psychology' })
     }
     
     // Validate that image is provided
@@ -184,7 +191,7 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-purple-700 to-purple-600 px-8 py-5 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white">
             {news ? 'Edit News Article' : 'Add New News Article'}
           </h2>
@@ -211,7 +218,7 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
                   required
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all"
                   placeholder="Enter news title"
                 />
               </div>
@@ -226,7 +233,7 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={3}
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all resize-none"
                   placeholder="Enter news description"
                 />
               </div>
@@ -238,32 +245,19 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
                 </label>
                 <select
                   required
-                  value={formData.category || 'News'}
+                  value={formData.category || categories[0] || ''}
                   onChange={(e) => {
                     const selectedCategory = e.target.value || 'News'
                     console.log('Category selected:', selectedCategory)
                     setFormData({ ...formData, category: selectedCategory })
                   }}
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-white"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all bg-white"
                 >
-                  {categories.length > 0 && categories.includes('News') ? (
-                    categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))
-                  ) : (
-                    <>
-                      <option value="News">News</option>
-                      {categories.map((category) => (
-                        category !== 'News' && (
-                          <option key={category} value={category}>
-                            {category}
-                          </option>
-                        )
-                      ))}
-                    </>
-                  )}
+                  {categories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -277,7 +271,7 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
                   type="text"
                   value={formData.tags}
                   onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all"
                   placeholder="#react, #javascript, #frontend"
                 />
               </div>
@@ -295,17 +289,17 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
                  {/* File Upload */}
                  <div className="mb-3">
                    <label
-                     className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
-                       isDragging
-                         ? 'border-blue-500 bg-blue-50'
-                         : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
+                    className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                      isDragging
+                        ? 'border-purple-500 bg-purple-100/70'
+                        : 'border-purple-200 bg-purple-50/60 hover:bg-purple-100/60'
                      }`}
                      onDragOver={handleDragOver}
                      onDragLeave={handleDragLeave}
                      onDrop={handleDrop}
                    >
                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                       <ImageIcon className={`w-10 h-10 mb-2 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
+                      <ImageIcon className={`w-10 h-10 mb-2 ${isDragging ? 'text-purple-600' : 'text-purple-400'}`} />
                        <p className="mb-2 text-sm text-gray-500">
                          <span className="font-semibold">Click to upload</span> or drag and drop
                        </p>
@@ -331,11 +325,11 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
                  </div>
 
                  {/* URL Input */}
-                 <input
-                   type="url"
-                   value={formData.image}
-                   onChange={(e) => handleImageChange(e.target.value)}
-                   className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                <input
+                  type="url"
+                  value={formData.image}
+                  onChange={(e) => handleImageChange(e.target.value)}
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all"
                    placeholder="Enter image URL"
                  />
                  
@@ -362,7 +356,7 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
                   type="text"
                   value={formData.author}
                   onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all"
                   placeholder="Teskup Team"
                 />
               </div>
@@ -378,7 +372,7 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
                   min="1"
                   value={formData.readTime}
                   onChange={(e) => setFormData({ ...formData, readTime: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all"
                   placeholder="5"
                 />
               </div>
@@ -386,17 +380,17 @@ export default function NewsModal({ news, categories = ['News', 'Technology', 'E
           </div>
 
           {/* Actions */}
-          <div className="mt-6 pt-5 border-t border-gray-200 flex justify-end gap-4">
+          <div className="mt-6 pt-5 border-t border-purple-200 flex justify-end gap-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-colors"
+              className="px-6 py-3 bg-purple-100 text-purple-700 rounded-xl font-semibold hover:bg-purple-200 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/50 hover:shadow-xl hover:shadow-blue-500/50 transition-all duration-300 hover:scale-105 flex items-center gap-2"
+              className="px-6 py-3 bg-gradient-to-r from-purple-700 to-purple-500 text-white rounded-xl font-semibold shadow-lg shadow-purple-900/30 hover:shadow-purple-800/40 transition-all duration-300 hover:scale-105 flex items-center gap-2"
             >
               <Save className="w-5 h-5" />
               Save News

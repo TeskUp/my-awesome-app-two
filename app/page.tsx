@@ -23,13 +23,17 @@ export interface NewsItem {
   comments: number
 }
 
+// News üçün istifadə edəcəyimiz kateqoriyalar
+// Bu adlar dropdown-da görünəcək və backend ID-lərinə xəritələnəcək
+const BASE_NEWS_CATEGORIES = ['psychology', 'programming', 'proqramlasdirma']
+
 export default function AdminPanel() {
   const [newsData, setNewsData] = useState<NewsItem[]>([])
   const [filteredNews, setFilteredNews] = useState<NewsItem[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingNews, setEditingNews] = useState<NewsItem | null>(null)
-  const [availableCategories, setAvailableCategories] = useState<string[]>(['News'])
+  const [availableCategories, setAvailableCategories] = useState<string[]>(BASE_NEWS_CATEGORIES)
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
@@ -219,10 +223,8 @@ export default function AdminPanel() {
         // Extract unique categories from API response (REAL categories from backend)
         const categories = Array.from(new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
         console.log('Available categories from API:', categories)
-        // Always include 'News' as default, then add other categories from API
-        const allCategories = categories.length > 0 
-          ? Array.from(new Set(['News', ...categories])) 
-          : ['News']
+        // Əsas olaraq öz category-lərimizi istifadə edirik
+        const allCategories = BASE_NEWS_CATEGORIES
         setAvailableCategories(allCategories)
         
         // Also save to localStorage as backup
@@ -260,12 +262,8 @@ export default function AdminPanel() {
               comments: item.comments || 0,
             }))
             
-            // Extract unique categories from localStorage data
-            const categories = Array.from(new Set(data.map((item: any) => item.category?.trim()).filter(Boolean))) as string[]
-            // Always include 'News' as default, then add other categories
-            const allCategories = categories.length > 0 
-              ? Array.from(new Set(['News', ...categories])) 
-              : ['News']
+            // Kateqoriyalar üçün həmişə öz baza siyahımızı istifadə edirik
+            const allCategories = BASE_NEWS_CATEGORIES
             setAvailableCategories(allCategories)
             
             setNewsData(mappedLocalNews)
@@ -553,11 +551,8 @@ export default function AdminPanel() {
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           })
           
-          // Update categories list
-          const categories = Array.from(new Set(sortedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
-          const allCategories = categories.length > 0 
-            ? Array.from(new Set(['News', ...categories])) 
-            : ['News']
+          // Kateqoriyalar üçün həmişə öz baza siyahımızı istifadə edirik
+          const allCategories = BASE_NEWS_CATEGORIES
           setAvailableCategories(allCategories)
           
           setNewsData(sortedNews)
@@ -617,8 +612,8 @@ export default function AdminPanel() {
           // Continue with update attempt - GetDetail might fail but Update might still work
         }
         
-        // Ensure category is set, default to 'News' if empty
-        const categoryToUse = news.category?.trim() || 'News'
+        // Ensure category is set, default to 'psychology' if empty
+        const categoryToUse = news.category?.trim() || 'psychology'
         const categoryId = getCategoryId(categoryToUse)
         const languageId = getDefaultLanguageIdSync()
         
@@ -840,11 +835,8 @@ export default function AdminPanel() {
         
         const mappedNews = await Promise.all(mappedNewsPromises)
         
-        // Also update categories list - use categories from mapped news (which includes detail data)
-        const categories = Array.from(new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
-        const allCategories = categories.length > 0 
-          ? Array.from(new Set(['News', ...categories])) 
-          : ['News']
+        // Kateqoriyalar üçün baza siyahımızdan istifadə edirik
+        const allCategories = BASE_NEWS_CATEGORIES
         setAvailableCategories(allCategories)
         
         setNewsData(mappedNews)
@@ -972,8 +964,8 @@ export default function AdminPanel() {
     } else {
       // Create new news via API
       try {
-        // Ensure category is set, default to 'News' if empty
-        const categoryToUse = news.category?.trim() || 'News'
+        // Ensure category is set, default to 'psychology' if empty
+        const categoryToUse = news.category?.trim() || 'psychology'
         const categoryId = getCategoryId(categoryToUse)
         // LanguageId should be language name (e.g., "English") for AddNewsDetail
         const languageId = 'English' // Default to English
@@ -1407,11 +1399,8 @@ export default function AdminPanel() {
         console.log('First news item ID:', sortedNews[0]?.id)
         console.log('Created news ID:', createdNewsId)
         
-        // Also update categories list - use categories from mapped news (which includes detail data)
-        const categories = Array.from(new Set(sortedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
-        const allCategories = categories.length > 0 
-          ? Array.from(new Set(['News', ...categories])) 
-          : ['News']
+        // Kateqoriyalar üçün baza siyahımızdan istifadə edirik
+        const allCategories = BASE_NEWS_CATEGORIES
         setAvailableCategories(allCategories)
         
         setNewsData(sortedNews)
@@ -1437,22 +1426,22 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+    <div className="flex h-screen w-screen overflow-hidden bg-white">
       <Sidebar />
       
       <main className="flex-1 overflow-hidden ml-64">
-        <div className="h-full overflow-y-auto p-8">
+        <div className="h-full overflow-y-auto p-8 bg-gray-50">
           {/* Header */}
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-4xl font-bold text-gray-800">
                 News Management
               </h1>
               <p className="mt-2 text-gray-600">Manage and organize your news articles</p>
             </div>
             <button
               onClick={handleAddNews}
-              className="group relative px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/50 hover:shadow-xl hover:shadow-blue-500/50 transition-all duration-300 hover:scale-105 flex items-center gap-2"
+              className="group relative px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-400 text-white rounded-xl font-semibold shadow-md shadow-purple-200 hover:shadow-purple-300 transition-all duration-300 hover:scale-105 flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
               Add New News
@@ -1462,46 +1451,46 @@ export default function AdminPanel() {
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {/* Total News Card */}
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 shadow-xl shadow-blue-500/30 hover:shadow-2xl hover:shadow-blue-500/40 transition-all duration-300 hover:scale-105">
+            <div className="bg-[#6B46C1] rounded-2xl p-6 shadow-lg shadow-purple-900/20 hover:shadow-purple-900/30 transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
                   <Newspaper className="w-6 h-6 text-white" />
                 </div>
               </div>
-              <h3 className="text-white/80 text-sm font-medium mb-1">Total News</h3>
+              <h3 className="text-white/90 text-sm font-medium mb-1">Total News</h3>
               <p className="text-3xl font-bold text-white">{totalNews}</p>
             </div>
 
             {/* This Month News Card */}
-            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 shadow-xl shadow-purple-500/30 hover:shadow-2xl hover:shadow-purple-500/40 transition-all duration-300 hover:scale-105">
+            <div className="bg-[#6B46C1] rounded-2xl p-6 shadow-lg shadow-purple-900/20 hover:shadow-purple-900/30 transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
                   <Calendar className="w-6 h-6 text-white" />
                 </div>
               </div>
-              <h3 className="text-white/80 text-sm font-medium mb-1">This Month</h3>
+              <h3 className="text-white/90 text-sm font-medium mb-1">This Month</h3>
               <p className="text-3xl font-bold text-white">{newsThisMonth}</p>
             </div>
 
             {/* Total Views Card */}
-            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 shadow-xl shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/40 transition-all duration-300 hover:scale-105">
+            <div className="bg-[#6B46C1] rounded-2xl p-6 shadow-lg shadow-purple-900/20 hover:shadow-purple-900/30 transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
                   <Eye className="w-6 h-6 text-white" />
                 </div>
               </div>
-              <h3 className="text-white/80 text-sm font-medium mb-1">Total Views</h3>
+              <h3 className="text-white/90 text-sm font-medium mb-1">Total Views</h3>
               <p className="text-3xl font-bold text-white">{totalViews.toLocaleString()}</p>
             </div>
 
             {/* Total Comments Card */}
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 shadow-xl shadow-orange-500/30 hover:shadow-2xl hover:shadow-orange-500/40 transition-all duration-300 hover:scale-105">
+            <div className="bg-[#6B46C1] rounded-2xl p-6 shadow-lg shadow-purple-900/20 hover:shadow-purple-900/30 transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
                   <MessageSquare className="w-6 h-6 text-white" />
                 </div>
               </div>
-              <h3 className="text-white/80 text-sm font-medium mb-1">Total Comments</h3>
+              <h3 className="text-white/90 text-sm font-medium mb-1">Total Comments</h3>
               <p className="text-3xl font-bold text-white">{totalComments.toLocaleString()}</p>
             </div>
           </div>
@@ -1514,22 +1503,22 @@ export default function AdminPanel() {
               placeholder="Search news..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full pl-12 pr-4 py-3 bg-white border border-purple-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all"
             />
           </div>
 
           {/* News Table */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
             {filteredNews.length === 0 ? (
               <div className="p-16 text-center">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 mb-4">
-                  <ImageIcon className="w-10 h-10 text-blue-600" />
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-purple-100 to-purple-200 mb-4">
+                  <ImageIcon className="w-10 h-10 text-purple-600" />
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-700 mb-2">No News Found</h3>
+                <h3 className="text-2xl font-semibold text-gray-800 mb-2">No News Found</h3>
                 <p className="text-gray-500 mb-6">Get started by adding your first news article</p>
                 <button
                   onClick={handleAddNews}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                  className="px-6 py-3 bg-gradient-to-r from-purple-700 to-purple-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-purple-800/40 transition-all duration-300"
                 >
                   Add Your First News
                 </button>
@@ -1537,7 +1526,7 @@ export default function AdminPanel() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                  <thead className="bg-gradient-to-r from-purple-500 to-purple-400 text-white">
                     <tr>
                       <th className="px-6 py-4 text-left font-semibold">Image</th>
                       <th className="px-6 py-4 text-left font-semibold">Title</th>
@@ -1551,7 +1540,7 @@ export default function AdminPanel() {
                     {filteredNews.map((news) => (
                       <tr
                         key={news.id}
-                        className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-purple-50/50 transition-colors duration-200"
+                        className="bg-white even:bg-gray-50 hover:bg-purple-50 transition-colors duration-200"
                       >
                         <td className="px-6 py-4">
                           <div className="w-20 h-16 rounded-lg overflow-hidden shadow-md">
@@ -1581,7 +1570,7 @@ export default function AdminPanel() {
                         </td>
                         <td className="px-6 py-4">
                           {news.category ? (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 min-w-[80px]">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 min-w-[80px]">
                               {news.category}
                             </span>
                           ) : (

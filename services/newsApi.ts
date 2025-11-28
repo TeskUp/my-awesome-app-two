@@ -31,13 +31,15 @@ export interface CreateNewsRequest {
   LanguageId: string
 }
 
-// Category ID mapping - correct IDs from backend
+// Category ID mapping - real kateqoriyalar və onların ID-ləri
+// - psychology (lang: English)      -> 2b4d53c3-33ea-4e45-aa65-20d1e92d61a9
+// - programming (lang: English)     -> 19ba8521-54d8-4f01-8935-6bac2e73011d
+// - proqramlasdirma (lang: Azerbaijani) -> e46228f6-64c0-44fe-b84f-e2efdc3a334c
+// Açarlar həmişə kiçik hərflə saxlanılır.
 const CATEGORY_ID_MAP: { [key: string]: string } = {
-  'News': '164345bb-18de-4d78-97fb-9a53af74ec68', // Correct ID from backend - linked to News category
-  'Workshops': '00000000-0000-0000-0000-000000000001', // Update when you have the correct ID
-  'Technology': '00000000-0000-0000-0000-000000000002', // Update when you have the correct ID
-  'Education': '00000000-0000-0000-0000-000000000003', // Update when you have the correct ID
-  'General': '164345bb-18de-4d78-97fb-9a53af74ec68', // Default to News category ID
+  psychology: '2b4d53c3-33ea-4e45-aa65-20d1e92d61a9',
+  programming: '19ba8521-54d8-4f01-8935-6bac2e73011d',
+  proqramlasdirma: 'e46228f6-64c0-44fe-b84f-e2efdc3a334c',
 }
 
 // Language ID mapping - correct IDs from backend
@@ -208,14 +210,18 @@ export async function createNews(request: CreateNewsRequest): Promise<{ id?: str
  * Get category ID from category name
  */
 export function getCategoryId(categoryName: string): string {
-  // Normalize category name (trim and handle empty/null)
-  const normalizedCategory = categoryName?.trim() || 'News'
-  
-  // Return the category ID if found, otherwise default to 'News' category ID
-  const categoryId = CATEGORY_ID_MAP[normalizedCategory] || CATEGORY_ID_MAP['News'] || '164345bb-18de-4d78-97fb-9a53af74ec68'
-  
+  // Normalize category name (trim + lowercase)
+  const normalizedCategory = (categoryName || '').trim().toLowerCase()
+
+  const categoryId = CATEGORY_ID_MAP[normalizedCategory]
+
+  // Əgər tapmadıqsa, konkret error vəziyyəti olsun – caller bunu yoxlayıb user‑ə mesaj göstərə bilir
+  if (!categoryId) {
+    console.error(`getCategoryId: UNKNOWN CATEGORY "${categoryName}" (normalized: "${normalizedCategory}")`)
+    return ''
+  }
+
   console.log(`getCategoryId: "${categoryName}" -> "${normalizedCategory}" -> "${categoryId}"`)
-  
   return categoryId
 }
 

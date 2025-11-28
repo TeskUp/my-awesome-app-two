@@ -7,6 +7,7 @@ export interface ToastMessage {
   id: string
   message: string
   type: ToastType
+  duration?: number
 }
 
 interface ToastContainerProps {
@@ -23,6 +24,7 @@ export default function ToastContainer({ toasts, onRemove }: ToastContainerProps
             message={toast.message}
             type={toast.type}
             onClose={() => onRemove(toast.id)}
+            duration={toast.duration}
           />
         </div>
       ))}
