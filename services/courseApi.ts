@@ -78,6 +78,12 @@ export interface CourseResponse {
       isLocked: boolean;
     }>;
   }>;
+  // Optional: For backward compatibility with frontend code that expects details array
+  details?: Array<{
+    title: string;
+    description: string;
+    languageId?: string;
+  }>;
 }
 
 /**
@@ -185,6 +191,15 @@ export async function getCourseDetail(
     const response = await http<CourseResponse>(
       `/courses/${courseId}?language=${encodeURIComponent(language)}`
     );
+
+    // Add details array for backward compatibility with frontend code
+    if (!response.details) {
+      response.details = [{
+        title: response.title,
+        description: response.description,
+        languageId: language,
+      }];
+    }
 
     console.log(`[getCourseDetail] ✓ Success`);
     return response;
