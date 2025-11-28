@@ -10,6 +10,7 @@ export interface AddCourseDetailRequest {
 }
 
 export interface UpdateCourseRequest {
+  id?: string; // Course ID (required for updateCourse, optional for createCourse)
   CategoryId: string;
   Level: 'Beginner' | 'Novice' | 'Intermediate' | 'Proficient' | 'Advanced';
   IsFree: boolean;
@@ -412,10 +413,12 @@ export async function getCourseDetail(
  * IMPORTANT: Make sure UsedLanguageId exists in database before calling this!
  */
 export async function updateCourse(
-  courseId: string,
   request: UpdateCourseRequest
 ): Promise<void> {
   try {
+    // Extract courseId from request or use id property
+    const courseId = request.id;
+    
     console.log(`[updateCourse] === UPDATING COURSE ===`);
     console.log(`[updateCourse] Course ID: ${courseId}`);
     console.log(`[updateCourse] IsFree: ${request.IsFree}`);
@@ -430,7 +433,7 @@ export async function updateCourse(
 
     // Validate required fields
     if (!courseId) {
-      throw new Error('Course ID is required');
+      throw new Error('Course ID is required (provide id in request object)');
     }
     if (!request.CategoryId) {
       throw new Error('CategoryId is required');
