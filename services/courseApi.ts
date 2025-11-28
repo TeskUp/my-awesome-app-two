@@ -90,6 +90,8 @@ export interface CourseResponse {
   usedLanguageId?: string; // For backward compatibility (not in backend response)
   createdAt?: string; // For backward compatibility (not in backend response)
   driveLink?: string; // For backward compatibility (not in backend response)
+  categoryId?: string; // For backward compatibility (not in backend response)
+  teacherIds?: string[]; // For backward compatibility (not in backend response)
   progress?: {
     percentage: number;
     completedLessons: number;
@@ -266,6 +268,8 @@ export async function getAllCourses(params?: {
       usedLanguageId: getDefaultLanguageId(), // Default to English
       createdAt: new Date().toISOString(), // Default to current date
       driveLink: '', // CourseCard doesn't include driveLink, set to empty string
+      categoryId: '', // CourseCard doesn't include categoryId, set to empty string
+      teacherIds: [card.instructor.id], // Use instructor ID as teacherIds (CourseCard only has one instructor)
       progress: card.progress !== null && card.progress !== undefined
         ? {
             percentage: card.progress,
@@ -367,6 +371,16 @@ export async function getCourseDetail(
     // Add driveLink for backward compatibility (not in backend response, set default)
     if (!response.driveLink) {
       response.driveLink = ''; // Default to empty string
+    }
+
+    // Add categoryId for backward compatibility (not in backend response, set default)
+    if (!response.categoryId) {
+      response.categoryId = ''; // Default to empty string
+    }
+
+    // Add teacherIds for backward compatibility (not in backend response, use instructor ID)
+    if (!response.teacherIds) {
+      response.teacherIds = [response.instructor.id]; // Use instructor ID as teacherIds
     }
 
     console.log(`[getCourseDetail] ✓ Success`);
