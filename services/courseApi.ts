@@ -92,6 +92,8 @@ export interface CourseResponse {
   driveLink?: string; // For backward compatibility (not in backend response)
   categoryId?: string; // For backward compatibility (not in backend response)
   teacherIds?: string[]; // For backward compatibility (not in backend response)
+  durationMinutes?: number; // For backward compatibility (not in backend response)
+  rating?: number; // For backward compatibility (also in stats.rating)
   progress?: {
     percentage: number;
     completedLessons: number;
@@ -270,6 +272,8 @@ export async function getAllCourses(params?: {
       driveLink: '', // CourseCard doesn't include driveLink, set to empty string
       categoryId: '', // CourseCard doesn't include categoryId, set to empty string
       teacherIds: [card.instructor.id], // Use instructor ID as teacherIds (CourseCard only has one instructor)
+      durationMinutes: 0, // CourseCard doesn't include durationMinutes, parse from duration string or set to 0
+      rating: card.rating, // Top-level rating (also available in stats.rating)
       progress: card.progress !== null && card.progress !== undefined
         ? {
             percentage: card.progress,
@@ -381,6 +385,16 @@ export async function getCourseDetail(
     // Add teacherIds for backward compatibility (not in backend response, use instructor ID)
     if (!response.teacherIds) {
       response.teacherIds = [response.instructor.id]; // Use instructor ID as teacherIds
+    }
+
+    // Add durationMinutes for backward compatibility (not in backend response, parse from stats.duration or set default)
+    if (response.durationMinutes === undefined) {
+      response.durationMinutes = 0; // Default to 0, could parse from stats.duration if needed
+    }
+
+    // Add rating for backward compatibility (also available in stats.rating)
+    if (response.rating === undefined) {
+      response.rating = response.stats?.rating || 0; // Use stats.rating as fallback
     }
 
     console.log(`[getCourseDetail] ✓ Success`);
