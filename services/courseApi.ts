@@ -88,6 +88,7 @@ export interface CourseResponse {
   isFree?: boolean; // For backward compatibility (not in backend response)
   price?: number; // For backward compatibility (not in backend response)
   usedLanguageId?: string; // For backward compatibility (not in backend response)
+  createdAt?: string; // For backward compatibility (not in backend response)
   progress?: {
     percentage: number;
     completedLessons: number;
@@ -305,6 +306,11 @@ export async function getCourseDetail(
     if (!response.usedLanguageId) {
       // Default to English language ID (from the API response you provided)
       response.usedLanguageId = 'b2c3d4e5-2345-6789-abcd-ef0123456789'; // English
+    }
+
+    // Add createdAt for backward compatibility (not in backend response, set default)
+    if (!response.createdAt) {
+      response.createdAt = new Date().toISOString(); // Default to current date
     }
 
     console.log(`[getCourseDetail] ✓ Success`);
