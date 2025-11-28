@@ -237,7 +237,7 @@ export async function updateCourseDetail(courseId: string, request: AddCourseDet
  * Create a new course
  * Returns the created course ID if available in response
  */
-export async function createCourse(request: CreateCourseRequest): Promise<{ id?: string; success: boolean }> {
+export async function createCourse(request: CreateCourseRequest): Promise<{ id?: string; success: boolean; message?: string }> {
   try {
     const formData = new FormData()
 
