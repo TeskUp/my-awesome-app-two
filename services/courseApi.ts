@@ -85,6 +85,8 @@ export interface CourseResponse {
   thumbnail?: string;
   imageUrl?: string; // Alias for thumbnail (backward compatibility)
   levelId?: string; // Alias for stats.level (backward compatibility)
+  isFree?: boolean; // For backward compatibility (not in backend response)
+  price?: number; // For backward compatibility (not in backend response)
   progress?: {
     percentage: number;
     completedLessons: number;
@@ -288,6 +290,14 @@ export async function getCourseDetail(
     // Add levelId alias for backward compatibility
     if (!response.levelId && response.stats?.level) {
       response.levelId = response.stats.level;
+    }
+
+    // Add isFree and price for backward compatibility (not in backend response, set defaults)
+    if (response.isFree === undefined) {
+      response.isFree = false; // Default to paid course
+    }
+    if (response.price === undefined) {
+      response.price = 0; // Default price
     }
 
     console.log(`[getCourseDetail] ✓ Success`);
