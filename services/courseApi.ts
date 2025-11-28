@@ -84,6 +84,7 @@ export interface CourseResponse {
   isPurchased: boolean;
   thumbnail?: string;
   imageUrl?: string; // Alias for thumbnail (backward compatibility)
+  levelId?: string; // Alias for stats.level (backward compatibility)
   progress?: {
     percentage: number;
     completedLessons: number;
@@ -282,6 +283,11 @@ export async function getCourseDetail(
     // Add imageUrl alias for backward compatibility
     if (!response.imageUrl && response.thumbnail) {
       response.imageUrl = response.thumbnail;
+    }
+
+    // Add levelId alias for backward compatibility
+    if (!response.levelId && response.stats?.level) {
+      response.levelId = response.stats.level;
     }
 
     console.log(`[getCourseDetail] ✓ Success`);
@@ -548,6 +554,29 @@ export async function updateCourseDetail(
     console.log(`[updateCourseDetail] ✓ Success:`, response);
   } catch (error: any) {
     console.error(`[updateCourseDetail] ✗✗✗ ERROR:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Delete course
+ * Backend: DELETE /api/admin/courses/{id}
+ */
+export async function deleteCourse(courseId: string): Promise<void> {
+  try {
+    console.log(`[deleteCourse] Deleting course ${courseId}`);
+
+    if (!courseId) {
+      throw new Error('Course ID is required');
+    }
+
+    const response = await http<void>(`/admin/courses/${courseId}`, {
+      method: 'DELETE',
+    });
+
+    console.log(`[deleteCourse] ✓ Success`);
+  } catch (error: any) {
+    console.error(`[deleteCourse] ✗✗✗ ERROR:`, error);
     throw error;
   }
 }
