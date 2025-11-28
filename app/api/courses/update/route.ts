@@ -62,7 +62,7 @@ export async function PUT(request: NextRequest) {
     console.log('FormData keys:', Array.from(formData.keys()))
     
     // Log all FormData values for debugging
-    for (const key of formData.keys()) {
+    for (const key of Array.from(formData.keys())) {
       const value = formData.get(key)
       if (value instanceof File) {
         console.log(`${key}: [File] ${value.name}, ${value.size} bytes, ${value.type}`)
