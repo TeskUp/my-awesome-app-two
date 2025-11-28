@@ -40,16 +40,10 @@ export async function PUT(request: NextRequest) {
     const instructorId = incomingFormData.get('InstructorId') || incomingFormData.getAll('TeacherIds')[0]
     if (instructorId) formData.append('InstructorId', String(instructorId))
     
-    // Thumbnail (not Image) - handle both File and Blob
+    // Thumbnail (not Image) - handle File type
     const thumbnail = incomingFormData.get('Thumbnail') || incomingFormData.get('Image')
-    if (thumbnail) {
-      if (thumbnail instanceof File) {
-        formData.append('Thumbnail', thumbnail)
-      } else if (thumbnail instanceof Blob) {
-        // Convert Blob to File for FormData
-        const file = new File([thumbnail], 'course.jpg', { type: thumbnail.type || 'image/jpeg' })
-        formData.append('Thumbnail', file)
-      }
+    if (thumbnail && thumbnail instanceof File) {
+      formData.append('Thumbnail', thumbnail)
     }
     
     const usedLanguageId = incomingFormData.get('UsedLanguageId')
