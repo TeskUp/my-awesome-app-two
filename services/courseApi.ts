@@ -17,12 +17,14 @@ export interface UpdateCourseRequest {
   Price: number;
   InstructorId: string;
   UsedLanguageId: string;
-  Rating: number;
-  DurationMinutes: number;
+  Rating?: number; // Optional - defaults to 0 in backend
+  DurationMinutes?: number; // Optional - defaults to 0 in backend
   Thumbnail?: File | null;
   Title?: string;
   Description?: string;
   LanguageId?: 'English' | 'Azerbaijani' | 'Russian';
+  TeacherIds?: string[]; // Optional - for frontend compatibility
+  Details?: any[]; // Optional - for frontend compatibility
 }
 
 export interface UsedLanguage {
@@ -466,8 +468,9 @@ export async function updateCourse(
     formData.append('Price', request.Price.toString());
     formData.append('InstructorId', request.InstructorId);
     formData.append('UsedLanguageId', request.UsedLanguageId);
-    formData.append('Rating', request.Rating.toString());
-    formData.append('DurationMinutes', request.DurationMinutes.toString());
+    // Use default values if Rating/DurationMinutes are undefined (backend defaults to 0)
+    formData.append('Rating', (request.Rating ?? 0).toString());
+    formData.append('DurationMinutes', (request.DurationMinutes ?? 0).toString());
 
     // Add optional fields if provided
     if (request.Title) {
@@ -549,8 +552,9 @@ export async function createCourse(request: UpdateCourseRequest): Promise<{ id: 
     formData.append('Price', request.Price.toString());
     formData.append('InstructorId', request.InstructorId);
     formData.append('UsedLanguageId', request.UsedLanguageId);
-    formData.append('Rating', request.Rating.toString());
-    formData.append('DurationMinutes', request.DurationMinutes.toString());
+    // Use default values if Rating/DurationMinutes are undefined (backend defaults to 0)
+    formData.append('Rating', (request.Rating ?? 0).toString());
+    formData.append('DurationMinutes', (request.DurationMinutes ?? 0).toString());
 
     if (request.Title) {
       formData.append('Title', request.Title);
