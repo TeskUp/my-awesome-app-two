@@ -30,14 +30,37 @@ export interface UsedLanguage {
   isDeactive: boolean;
 }
 
-// Level options for dropdown
+// Level options for dropdown (array of strings for CourseModal compatibility)
 export const LEVEL_OPTIONS = [
-  { value: 'Beginner', label: 'Beginner' },
-  { value: 'Novice', label: 'Novice' },
-  { value: 'Intermediate', label: 'Intermediate' },
-  { value: 'Proficient', label: 'Proficient' },
-  { value: 'Advanced', label: 'Advanced' },
+  'Beginner',
+  'Novice',
+  'Intermediate',
+  'Proficient',
+  'Advanced',
 ] as const;
+
+// Test IDs for default values (used in CourseModal)
+export const TEST_IDS = {
+  CATEGORY_ID_PROGRAMMING: '19ba8521-54d8-4f01-8935-6bac2e73011d',
+  TEACHER_ID: 'eb5342da-b48b-4085-73cf-08de2dbbd0d8',
+  USED_LANGUAGE_ID_ENGLISH: 'b2c3d4e5-2345-6789-abcd-ef0123456789',
+} as const;
+
+/**
+ * Get default language ID (English)
+ */
+export function getDefaultLanguageId(): string {
+  return TEST_IDS.USED_LANGUAGE_ID_ENGLISH;
+}
+
+/**
+ * Get language ID by language name
+ */
+export function getLanguageId(language: 'English' | 'Azerbaijani' | 'Russian'): string {
+  // For now, return English ID as default
+  // You can extend this to return different IDs based on language
+  return TEST_IDS.USED_LANGUAGE_ID_ENGLISH;
+}
 
 // Course detail response type (matches CourseDetailNewDTO from backend)
 export interface CourseResponse {
