@@ -30,6 +30,56 @@ export interface UsedLanguage {
   isDeactive: boolean;
 }
 
+// Level options for dropdown
+export const LEVEL_OPTIONS = [
+  { value: 'Beginner', label: 'Beginner' },
+  { value: 'Novice', label: 'Novice' },
+  { value: 'Intermediate', label: 'Intermediate' },
+  { value: 'Proficient', label: 'Proficient' },
+  { value: 'Advanced', label: 'Advanced' },
+] as const;
+
+// Course detail response type (matches CourseDetailNewDTO from backend)
+export interface CourseResponse {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  instructor: {
+    id: string;
+    name: string;
+    bio?: string;
+    avatar?: string;
+  };
+  stats: {
+    duration: string;
+    students: number;
+    rating: number;
+    lessonsCount: number;
+    level: string;
+  };
+  isPurchased: boolean;
+  thumbnail?: string;
+  progress?: {
+    percentage: number;
+    completedLessons: number;
+    totalLessons: number;
+  };
+  sections: Array<{
+    id: string;
+    week: string;
+    title: string;
+    lessonsCount: number;
+    duration: string;
+    lectures: Array<{
+      id: string;
+      title: string;
+      duration: string;
+      isLocked: boolean;
+    }>;
+  }>;
+}
+
 /**
  * Helper function to get auth token from localStorage
  */
@@ -113,6 +163,33 @@ export async function getUsedLanguages(): Promise<UsedLanguage[]> {
     return activeLanguages;
   } catch (error: any) {
     console.error(`[getUsedLanguages] ✗ Error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Get course detail by ID
+ * Backend: GET /api/courses/{id}?language={language}
+ */
+export async function getCourseDetail(
+  courseId: string,
+  language: 'English' | 'Azerbaijani' | 'Russian' = 'English'
+): Promise<CourseResponse> {
+  try {
+    console.log(`[getCourseDetail] Fetching course ${courseId} in ${language}`);
+
+    if (!courseId) {
+      throw new Error('Course ID is required');
+    }
+
+    const response = await http<CourseResponse>(
+      `/courses/${courseId}?language=${encodeURIComponent(language)}`
+    );
+
+    console.log(`[getCourseDetail] ✓ Success`);
+    return response;
+  } catch (error: any) {
+    console.error(`[getCourseDetail] ✗✗✗ ERROR:`, error);
     throw error;
   }
 }
