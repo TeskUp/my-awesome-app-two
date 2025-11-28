@@ -87,6 +87,7 @@ export interface CourseResponse {
   levelId?: string; // Alias for stats.level (backward compatibility)
   isFree?: boolean; // For backward compatibility (not in backend response)
   price?: number; // For backward compatibility (not in backend response)
+  usedLanguageId?: string; // For backward compatibility (not in backend response)
   progress?: {
     percentage: number;
     completedLessons: number;
@@ -298,6 +299,12 @@ export async function getCourseDetail(
     }
     if (response.price === undefined) {
       response.price = 0; // Default price
+    }
+
+    // Add usedLanguageId for backward compatibility (not in backend response, set default to English)
+    if (!response.usedLanguageId) {
+      // Default to English language ID (from the API response you provided)
+      response.usedLanguageId = 'b2c3d4e5-2345-6789-abcd-ef0123456789'; // English
     }
 
     console.log(`[getCourseDetail] ✓ Success`);
