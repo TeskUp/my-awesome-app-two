@@ -406,7 +406,7 @@ export default function CourseDetailPage() {
                     <h1 className="text-4xl font-bold text-white">
                       Course Content
                     </h1>
-                    <p className="mt-2 text-purple-100">{course.title || 'Course'}</p>
+                    <p className="mt-2 text-purple-100">{course.details?.[0]?.title || 'Course'}</p>
                     {totalLectures > 0 && (
                       <p className="mt-1 text-purple-200 text-sm">
                         {openLectures} / {totalLectures} dərs açıq
@@ -589,7 +589,7 @@ export default function CourseDetailPage() {
                   <div className="mb-6">
                     <img
                       src={course.imageUrl}
-                      alt={course.title}
+                      alt={course.details?.[0]?.title || 'Course'}
                       className="w-full h-48 object-cover rounded-xl"
                     />
                   </div>
@@ -600,7 +600,7 @@ export default function CourseDetailPage() {
                   <div className="mb-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Təsvir</h3>
                     <p className="text-sm text-gray-600 leading-relaxed">
-                      {course.details[0]?.description || course.title}
+                      {course.details[0]?.description || course.details[0]?.title || 'No description'}
                     </p>
                   </div>
                 )}
