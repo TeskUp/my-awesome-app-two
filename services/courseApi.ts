@@ -506,14 +506,21 @@ export async function getCourseDetail(courseId: string): Promise<CourseResponse>
 // Interfaces for API responses
 export interface Category {
   id: string
-  name: string
   isDeactive: boolean
+  details: Array<{
+    name: string
+    languageId: string
+  }>
+  // Helper: get name from first detail (for backward compatibility)
+  name?: string
 }
 
 export interface UsedLanguage {
   id: string
   isoCode: string
   isDeactive: boolean
+  courseIds?: string[]
+  teacherIds?: string[]
 }
 
 /**
@@ -543,8 +550,15 @@ export async function getCategories(language: 'English' | 'Azerbaijani' | 'Russi
     }
 
     const data = await response.json()
-    // Filter out deactivated categories
-    return Array.isArray(data) ? data.filter((cat: Category) => !cat.isDeactive) : []
+    // Filter out deactivated categories and add name helper
+    return Array.isArray(data) 
+      ? data
+          .filter((cat: Category) => !cat.isDeactive)
+          .map((cat: Category) => ({
+            ...cat,
+            name: cat.details?.[0]?.name || 'Unnamed Category', // Extract name from first detail
+          }))
+      : []
   } catch (error) {
     console.error('Error fetching categories:', error)
     throw error
@@ -593,4 +607,29 @@ export const TEST_IDS = {
   USED_LANGUAGE_ID_ENGLISH: 'b2c3d4e5-2345-6789-abcd-ef0123456789', // Provided language ID
   CATEGORY_ID_PROGRAMMING: '19ba8521-54d8-4f01-8935-6bac2e73011d', // programming (default)
   TEACHER_ID: 'eb5342da-b48b-4085-73cf-08de2dbbd0d8', // ahmet yilmaz (default)
+}
+
+/**
+ * Validate and fix UsedLanguageId - returns a valid ID
+ * If the provided ID is invalid, returns the default English ID
+ */
+export async function validateOrFixUsedLanguageId(usedLanguageId: string | undefined): Promise<string> {
+  if (!usedLanguageId) {
+    return TEST_IDS.USED_LANGUAGE_ID_ENGLISH
+  }
+
+  try {
+    const validLanguages = await getUsedLanguages()
+    const languageExists = validLanguages.some(lang => lang.id === usedLanguageId)
+    
+    if (languageExists) {
+      return usedLanguageId
+    } else {
+      console.warn(`[validateOrFixUsedLanguageId] Invalid UsedLanguageId: ${usedLanguageId}, using default English ID`)
+      return TEST_IDS.USED_LANGUAGE_ID_ENGLISH
+    }
+  } catch (error) {
+    console.warn(`[validateOrFixUsedLanguageId] Could not validate UsedLanguageId, using default:`, error)
+    return TEST_IDS.USED_LANGUAGE_ID_ENGLISH
+  }
 }
