@@ -1,696 +1,510 @@
-// services/courseApi.ts - Düzəldilmiş versiya
+// Use Next.js API routes as proxy to avoid CORS issues
 
-const BACKEND_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://teskup-production.up.railway.app/api';
+const API_BASE_URL = '/api/courses'
 
-// Types
-export interface AddCourseDetailRequest {
-  Title: string;
-  Description: string;
-  LanguageId: 'English' | 'Azerbaijani' | 'Russian';
+const BACKEND_API_BASE_URL = 'https://teskup-production.up.railway.app/api'
+
+export interface CourseDetail {
+  title: string
+  description: string
+  languageId: string
+}
+
+export interface CourseResponse {
+  id: string
+  driveLink?: string
+  isFree: boolean
+  price: number
+  imageUrl?: string
+  usedLanguageId: string
+  categoryId: string
+  category?: string // Category name (string) from backend
+  levelId: string
+  teacherIds: string[]
+  details?: CourseDetail[]
+  durationMinutes?: number
+  rating?: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+// Language ID mapping - using provided language ID
+const LANGUAGE_ID_MAP: { [key: string]: string } = {
+  'default': 'b2c3d4e5-2345-6789-abcd-ef0123456789', // Provided language ID
+}
+
+// Language name to ID mapping (for UsedLanguageId)
+const LANGUAGE_NAME_TO_ID: { [key: string]: string } = {
+  'Azerbaijani': 'b2c3d4e5-2345-6789-abcd-ef0123456789',
+  'English': 'b2c3d4e5-2345-6789-abcd-ef0123456789',
+  'Russian': 'b2c3d4e5-2345-6789-abcd-ef0123456789',
+}
+
+// Language ID to name mapping (for addDetail - backend expects language name)
+const LANGUAGE_ID_TO_NAME: { [key: string]: string } = {
+  'b2c3d4e5-2345-6789-abcd-ef0123456789': 'English', // Default to English for addDetail
+}
+
+// Default language ID (provided by user)
+export const DEFAULT_LANGUAGE_ID = 'b2c3d4e5-2345-6789-abcd-ef0123456789'
+
+// Level options - from Swagger dropdown
+export const LEVEL_OPTIONS = ['Beginner', 'Novice', 'Intermediate', 'Proficient', 'Advanced']
+
+// Default category ID (programming - provided by user)
+export const DEFAULT_CATEGORY_ID = '19ba8521-54d8-4f01-8935-6bac2e73011d'
+
+export function getLanguageId(language: string): string {
+  return LANGUAGE_NAME_TO_ID[language] || DEFAULT_LANGUAGE_ID
+}
+
+export function getDefaultLanguageId(): string {
+  return DEFAULT_LANGUAGE_ID
+}
+
+export interface CreateCourseRequest {
+  IsFree: boolean
+  Price: number
+  Image?: File | Blob
+  UsedLanguageId: string
+  CategoryId: string
+  LevelId: string
+  TeacherIds: string[]
+  Details: CourseDetail[]
+  Rating?: number
+  DurationMinutes?: number
 }
 
 export interface UpdateCourseRequest {
-  id?: string; // Course ID (required for updateCourse, optional for createCourse)
-  CategoryId: string;
-  Level: 'Beginner' | 'Novice' | 'Intermediate' | 'Proficient' | 'Advanced';
-  IsFree: boolean;
-  Price: number;
-  InstructorId: string;
-  UsedLanguageId: string;
-  Rating?: number; // Optional - defaults to 0 in backend
-  DurationMinutes?: number; // Optional - defaults to 0 in backend
-  Thumbnail?: File | null;
-  Title?: string;
-  Description?: string;
-  LanguageId?: 'English' | 'Azerbaijani' | 'Russian';
-  TeacherIds?: string[]; // Optional - for frontend compatibility
-  Details?: any[]; // Optional - for frontend compatibility
+  IsFree: boolean
+  Price: number
+  Image?: File | Blob
+  UsedLanguageId: string
+  CategoryId: string
+  LevelId: string
+  TeacherIds: string[]
+  Details: CourseDetail[]
+  Rating?: number
+  DurationMinutes?: number
 }
 
-export interface UsedLanguage {
-  id: string;
-  isoCode: string;
-  isDeactive: boolean;
-}
-
-// Level options for dropdown (array of strings for CourseModal compatibility)
-export const LEVEL_OPTIONS = [
-  'Beginner',
-  'Novice',
-  'Intermediate',
-  'Proficient',
-  'Advanced',
-] as const;
-
-// Test IDs for default values (used in CourseModal)
-export const TEST_IDS = {
-  CATEGORY_ID_PROGRAMMING: '19ba8521-54d8-4f01-8935-6bac2e73011d',
-  TEACHER_ID: 'eb5342da-b48b-4085-73cf-08de2dbbd0d8',
-  USED_LANGUAGE_ID_ENGLISH: 'b2c3d4e5-2345-6789-abcd-ef0123456789',
-} as const;
-
-/**
- * Get default language ID (English)
- */
-export function getDefaultLanguageId(): string {
-  return TEST_IDS.USED_LANGUAGE_ID_ENGLISH;
-}
-
-/**
- * Get language ID by language name
- */
-export function getLanguageId(language: 'English' | 'Azerbaijani' | 'Russian'): string {
-  // For now, return English ID as default
-  // You can extend this to return different IDs based on language
-  return TEST_IDS.USED_LANGUAGE_ID_ENGLISH;
-}
-
-// Course detail response type (matches CourseDetailNewDTO from backend)
-export interface CourseResponse {
-  id: string;
-  category: string;
-  title: string;
-  description: string;
-  instructor: {
-    id: string;
-    name: string;
-    bio?: string;
-    avatar?: string;
-  };
-  stats: {
-    duration: string;
-    students: number;
-    rating: number;
-    lessonsCount: number;
-    level: string;
-  };
-  isPurchased: boolean;
-  thumbnail?: string;
-  imageUrl?: string; // Alias for thumbnail (backward compatibility)
-  levelId?: string; // Alias for stats.level (backward compatibility)
-  isFree?: boolean; // For backward compatibility (not in backend response)
-  price?: number; // For backward compatibility (not in backend response)
-  usedLanguageId?: string; // For backward compatibility (not in backend response)
-  createdAt?: string; // For backward compatibility (not in backend response)
-  driveLink?: string; // For backward compatibility (not in backend response)
-  categoryId?: string; // For backward compatibility (not in backend response)
-  teacherIds?: string[]; // For backward compatibility (not in backend response)
-  durationMinutes?: number; // For backward compatibility (not in backend response)
-  rating?: number; // For backward compatibility (also in stats.rating)
-  progress?: {
-    percentage: number;
-    completedLessons: number;
-    totalLessons: number;
-  };
-  sections: Array<{
-    id: string;
-    week: string;
-    title: string;
-    lessonsCount: number;
-    duration: string;
-    lectures: Array<{
-      id: string;
-      title: string;
-      duration: string;
-      isLocked: boolean;
-    }>;
-  }>;
-  // Optional: For backward compatibility with frontend code that expects details array
-  details?: CourseDetail[];
-}
-
-// Course detail item type (for details array)
-export interface CourseDetail {
-  title: string;
-  description: string;
-  languageId?: string;
-}
-
-/**
- * Helper function to get auth token from localStorage
- */
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return localStorage.getItem('token');
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Helper function to make authenticated API calls
- */
-async function http<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = {
-    'Accept': 'application/json',
-  };
-
-  // Add auth token if available
-  const token = getAuthToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  // Only add Content-Type for JSON, not for FormData
-  if (init?.body && !(init.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  // Merge any additional headers
-  if (init?.headers) {
-    if (init.headers instanceof Headers) {
-      init.headers.forEach((value, key) => {
-        headers[key] = value;
-      });
-    } else if (Array.isArray(init.headers)) {
-      init.headers.forEach(([key, value]) => {
-        headers[key] = value;
-      });
-    } else {
-      Object.assign(headers, init.headers);
-    }
-  }
-
-  const res = await fetch(`${BACKEND_API_BASE_URL}${path}`, {
-    ...init,
-    headers: headers as HeadersInit,
-    cache: 'no-store',
-    credentials: 'include',
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => 'Unknown error');
-    let errorMessage = `Request failed: ${res.status}`;
-    
-    try {
-      const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.message || errorJson.title || errorJson.error || errorText;
-    } catch {
-      errorMessage = errorText || `Request failed: ${res.status} ${res.statusText}`;
-    }
-    
-    throw new Error(errorMessage);
-  }
-
-  return (await res.json()) as T;
-}
-
-// Course card type for list view (matches CourseCardDTO from backend)
-export interface CourseCard {
-  id: string;
-  title: string;
-  category: string;
-  description?: string;
-  thumbnail?: string;
-  instructor: {
-    id: string;
-    name: string;
-    avatar?: string;
-  };
-  progress?: number | null;
-  duration: string;
-  students: number;
-  rating: number;
-  price: number;
-  lessons: number;
-  status: 'ongoing' | 'register' | 'completed' | 'Register';
-}
-
-/**
- * Get all courses (for course list page)
- * Backend: GET /api/courses
- * Returns CourseResponse[] for compatibility with frontend that expects CourseResponse
- */
-export async function getAllCourses(params?: {
-  search?: string;
-  category?: string;
-  difficulty?: 'Beginner' | 'Novice' | 'Intermediate' | 'Proficient' | 'Advanced';
-  price?: string;
-  status?: string;
-}): Promise<CourseResponse[]> {
-  try {
-    console.log(`[getAllCourses] Fetching courses with params:`, params);
-
-    const queryParams = new URLSearchParams();
-    if (params?.search) queryParams.append('search', params.search);
-    if (params?.category) queryParams.append('category', params.category);
-    if (params?.difficulty) queryParams.append('difficulty', params.difficulty);
-    if (params?.price) queryParams.append('price', params.price);
-    if (params?.status) queryParams.append('status', params.status);
-
-    const queryString = queryParams.toString();
-    const url = `/courses${queryString ? `?${queryString}` : ''}`;
-
-    // Backend returns CourseCardDTO[], transform to CourseResponse[] for frontend compatibility
-    const cards = await http<CourseCard[]>(url);
-    console.log(`[getAllCourses] ✓ Found ${cards.length} courses`);
-
-    // Transform CourseCard to CourseResponse
-    const response: CourseResponse[] = cards.map((card) => ({
-      id: card.id,
-      category: card.category,
-      title: card.title,
-      description: card.description || '',
-      instructor: {
-        id: card.instructor.id,
-        name: card.instructor.name,
-        avatar: card.instructor.avatar,
-      },
-      stats: {
-        duration: card.duration,
-        students: card.students,
-        rating: card.rating,
-        lessonsCount: card.lessons,
-        level: '', // CourseCard doesn't have level, will need to be populated from backend
-      },
-      isPurchased: card.status === 'ongoing' || card.status === 'completed',
-      thumbnail: card.thumbnail,
-      imageUrl: card.thumbnail, // Alias for backward compatibility
-      levelId: '', // Will need to be populated from backend
-      isFree: card.price === 0, // Infer from price
-      price: card.price,
-      usedLanguageId: getDefaultLanguageId(), // Default to English
-      createdAt: new Date().toISOString(), // Default to current date
-      driveLink: '', // CourseCard doesn't include driveLink, set to empty string
-      categoryId: '', // CourseCard doesn't include categoryId, set to empty string
-      teacherIds: [card.instructor.id], // Use instructor ID as teacherIds (CourseCard only has one instructor)
-      durationMinutes: 0, // CourseCard doesn't include durationMinutes, parse from duration string or set to 0
-      rating: card.rating, // Top-level rating (also available in stats.rating)
-      progress: card.progress !== null && card.progress !== undefined
-        ? {
-            percentage: card.progress,
-            completedLessons: 0, // Not available in CourseCard
-            totalLessons: card.lessons,
-          }
-        : undefined,
-      sections: [], // CourseCard doesn't include sections
-      details: [
-        {
-          title: card.title,
-          description: card.description || '',
-          languageId: getDefaultLanguageId(),
-        },
-      ],
-    }));
-
-    return response;
-  } catch (error: any) {
-    console.error(`[getAllCourses] ✗✗✗ ERROR:`, error);
-    throw error;
-  }
-}
-
-/**
- * Get all available UsedLanguages
- * Backend: GET /api/UsedLanguages/GetAll
- */
-export async function getUsedLanguages(): Promise<UsedLanguage[]> {
-  try {
-    console.log(`[getUsedLanguages] Fetching available languages...`);
-    const languages = await http<UsedLanguage[]>(`/UsedLanguages/GetAll`);
-    const activeLanguages = languages.filter(lang => !lang.isDeactive);
-    console.log(`[getUsedLanguages] Found ${activeLanguages.length} active languages`);
-    return activeLanguages;
-  } catch (error: any) {
-    console.error(`[getUsedLanguages] ✗ Error:`, error);
-    throw error;
-  }
-}
-
-/**
- * Get course detail by ID
- * Backend: GET /api/courses/{id}?language={language}
- */
-export async function getCourseDetail(
-  courseId: string,
-  language: 'English' | 'Azerbaijani' | 'Russian' = 'English'
-): Promise<CourseResponse> {
-  try {
-    console.log(`[getCourseDetail] Fetching course ${courseId} in ${language}`);
-
-    if (!courseId) {
-      throw new Error('Course ID is required');
-    }
-
-    const response = await http<CourseResponse>(
-      `/courses/${courseId}?language=${encodeURIComponent(language)}`
-    );
-
-    // Add details array for backward compatibility with frontend code
-    if (!response.details) {
-      response.details = [{
-        title: response.title,
-        description: response.description,
-        languageId: language,
-      }];
-    }
-
-    // Add imageUrl alias for backward compatibility
-    if (!response.imageUrl && response.thumbnail) {
-      response.imageUrl = response.thumbnail;
-    }
-
-    // Add levelId alias for backward compatibility
-    if (!response.levelId && response.stats?.level) {
-      response.levelId = response.stats.level;
-    }
-
-    // Add isFree and price for backward compatibility (not in backend response, set defaults)
-    if (response.isFree === undefined) {
-      response.isFree = false; // Default to paid course
-    }
-    if (response.price === undefined) {
-      response.price = 0; // Default price
-    }
-
-    // Add usedLanguageId for backward compatibility (not in backend response, set default to English)
-    if (!response.usedLanguageId) {
-      // Default to English language ID (from the API response you provided)
-      response.usedLanguageId = 'b2c3d4e5-2345-6789-abcd-ef0123456789'; // English
-    }
-
-    // Add createdAt for backward compatibility (not in backend response, set default)
-    if (!response.createdAt) {
-      response.createdAt = new Date().toISOString(); // Default to current date
-    }
-
-    // Add driveLink for backward compatibility (not in backend response, set default)
-    if (!response.driveLink) {
-      response.driveLink = ''; // Default to empty string
-    }
-
-    // Add categoryId for backward compatibility (not in backend response, set default)
-    if (!response.categoryId) {
-      response.categoryId = ''; // Default to empty string
-    }
-
-    // Add teacherIds for backward compatibility (not in backend response, use instructor ID)
-    if (!response.teacherIds) {
-      response.teacherIds = [response.instructor.id]; // Use instructor ID as teacherIds
-    }
-
-    // Add durationMinutes for backward compatibility (not in backend response, parse from stats.duration or set default)
-    if (response.durationMinutes === undefined) {
-      response.durationMinutes = 0; // Default to 0, could parse from stats.duration if needed
-    }
-
-    // Add rating for backward compatibility (also available in stats.rating)
-    if (response.rating === undefined) {
-      response.rating = response.stats?.rating || 0; // Use stats.rating as fallback
-    }
-
-    console.log(`[getCourseDetail] ✓ Success`);
-    return response;
-  } catch (error: any) {
-    console.error(`[getCourseDetail] ✗✗✗ ERROR:`, error);
-    throw error;
-  }
-}
-
-/**
- * Update course
- * Backend: PUT /api/admin/courses/{id}
- * 
- * IMPORTANT: Make sure UsedLanguageId exists in database before calling this!
- */
-export async function updateCourse(
-  request: UpdateCourseRequest
-): Promise<void> {
-  try {
-    // Extract courseId from request or use id property
-    const courseId = request.id;
-    
-    console.log(`[updateCourse] === UPDATING COURSE ===`);
-    console.log(`[updateCourse] Course ID: ${courseId}`);
-    console.log(`[updateCourse] IsFree: ${request.IsFree}`);
-    console.log(`[updateCourse] Price: ${request.Price}`);
-    console.log(`[updateCourse] CategoryId: ${request.CategoryId}`);
-    console.log(`[updateCourse] Level: ${request.Level}`);
-    console.log(`[updateCourse] InstructorId: ${request.InstructorId}`);
-    console.log(`[updateCourse] UsedLanguageId: ${request.UsedLanguageId}`);
-    console.log(`[updateCourse] Rating: ${request.Rating}`);
-    console.log(`[updateCourse] DurationMinutes: ${request.DurationMinutes}`);
-    console.log(`[updateCourse] Has Image: ${!!request.Thumbnail}`);
-
-    // Validate required fields
-    if (!courseId) {
-      throw new Error('Course ID is required (provide id in request object)');
-    }
-    if (!request.CategoryId) {
-      throw new Error('CategoryId is required');
-    }
-    if (!request.InstructorId) {
-      throw new Error('InstructorId is required');
-    }
-    if (!request.UsedLanguageId) {
-      throw new Error('UsedLanguageId is required');
-    }
-
-    // Validate UsedLanguageId exists (fetch and check)
-    const availableLanguages = await getUsedLanguages();
-    const languageExists = availableLanguages.some(lang => lang.id === request.UsedLanguageId);
-    
-    if (!languageExists) {
-      const availableIds = availableLanguages.map(l => l.id).join(', ');
-      throw new Error(
-        `Invalid UsedLanguageId: ${request.UsedLanguageId}. ` +
-        `Available IDs: ${availableIds || 'None found'}. ` +
-        `Please select a valid language from the dropdown.`
-      );
-    }
-
-    // Create FormData for multipart/form-data
-    const formData = new FormData();
-    formData.append('CategoryId', request.CategoryId);
-    formData.append('Level', request.Level);
-    formData.append('IsFree', request.IsFree.toString());
-    formData.append('Price', request.Price.toString());
-    formData.append('InstructorId', request.InstructorId);
-    formData.append('UsedLanguageId', request.UsedLanguageId);
-    // Use default values if Rating/DurationMinutes are undefined (backend defaults to 0)
-    formData.append('Rating', (request.Rating ?? 0).toString());
-    formData.append('DurationMinutes', (request.DurationMinutes ?? 0).toString());
-
-    // Add optional fields if provided
-    if (request.Title) {
-      formData.append('Title', request.Title);
-    }
-    if (request.Description) {
-      formData.append('Description', request.Description);
-    }
-    if (request.LanguageId) {
-      formData.append('LanguageId', request.LanguageId);
-    }
-
-    // Only add Thumbnail if provided
-    if (request.Thumbnail) {
-      formData.append('Thumbnail', request.Thumbnail);
-      console.log(`[updateCourse] Including Thumbnail: ${request.Thumbnail.name}`);
-    } else {
-      console.log(`[updateCourse] No image provided - not sending Thumbnail field`);
-    }
-
-    // Log FormData keys for debugging
-    const formDataKeys: string[] = [];
-    formData.forEach((_, key) => formDataKeys.push(key));
-    console.log(`[updateCourse] FormData keys:`, formDataKeys);
-
-    // Correct endpoint: PUT /api/admin/courses/{id}
-    const url = `/admin/courses/${courseId}`;
-    console.log(`[updateCourse] Sending PUT request to: ${BACKEND_API_BASE_URL}${url}`);
-
-    const response = await http<{ message: string }>(url, {
-      method: 'PUT',
-      body: formData, // FormData, not JSON
-    });
-
-    console.log(`[updateCourse] ✓ Success:`, response);
-  } catch (error: any) {
-    console.error(`[updateCourse] ✗✗✗ ERROR:`, error);
-    throw error;
-  }
-}
-
-/**
- * Create course
- * Backend: POST /api/admin/courses
- */
-export async function createCourse(request: UpdateCourseRequest): Promise<{ id: string; message: string }> {
-  try {
-    console.log(`[createCourse] === CREATING COURSE ===`);
-
-    // Validate required fields
-    if (!request.CategoryId) {
-      throw new Error('CategoryId is required');
-    }
-    if (!request.InstructorId) {
-      throw new Error('InstructorId is required');
-    }
-    if (!request.UsedLanguageId) {
-      throw new Error('UsedLanguageId is required');
-    }
-
-    // Validate UsedLanguageId exists
-    const availableLanguages = await getUsedLanguages();
-    const languageExists = availableLanguages.some(lang => lang.id === request.UsedLanguageId);
-    
-    if (!languageExists) {
-      const availableIds = availableLanguages.map(l => l.id).join(', ');
-      throw new Error(
-        `Invalid UsedLanguageId: ${request.UsedLanguageId}. ` +
-        `Available IDs: ${availableIds || 'None found'}. ` +
-        `Please select a valid language from the dropdown.`
-      );
-    }
-
-    // Create FormData
-    const formData = new FormData();
-    formData.append('CategoryId', request.CategoryId);
-    formData.append('Level', request.Level);
-    formData.append('IsFree', request.IsFree.toString());
-    formData.append('Price', request.Price.toString());
-    formData.append('InstructorId', request.InstructorId);
-    formData.append('UsedLanguageId', request.UsedLanguageId);
-    // Use default values if Rating/DurationMinutes are undefined (backend defaults to 0)
-    formData.append('Rating', (request.Rating ?? 0).toString());
-    formData.append('DurationMinutes', (request.DurationMinutes ?? 0).toString());
-
-    if (request.Title) {
-      formData.append('Title', request.Title);
-    }
-    if (request.Description) {
-      formData.append('Description', request.Description);
-    }
-    if (request.LanguageId) {
-      formData.append('LanguageId', request.LanguageId);
-    }
-    if (request.Thumbnail) {
-      formData.append('Thumbnail', request.Thumbnail);
-    }
-
-    const response = await http<{ id: string; message: string }>(`/admin/courses`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    console.log(`[createCourse] ✓ Success:`, response);
-    return response;
-  } catch (error: any) {
-    console.error(`[createCourse] ✗✗✗ ERROR:`, error);
-    throw error;
-  }
+export interface AddCourseDetailRequest {
+  Title: string
+  Description: string
+  LanguageId: string // Language name (e.g., "English", "Azerbaijani", "Russian")
 }
 
 /**
  * Add course detail (title, description) to a course
- * Backend: POST /api/admin/courses/{courseId}/details
+ * Similar to addNewsDetail - backend expects language name, not GUID
  */
-export async function addCourseDetail(
-  courseId: string,
-  request: AddCourseDetailRequest
-): Promise<void> {
+export async function addCourseDetail(courseId: string, request: AddCourseDetailRequest): Promise<void> {
   try {
-    console.log(`[addCourseDetail] Starting for courseId: ${courseId}, language: ${request.LanguageId}`);
+    console.log(`[addCourseDetail] Starting for courseId: ${courseId}, language: ${request.LanguageId}`)
+    console.log(`[addCourseDetail] Title: "${request.Title}", Description: "${request.Description}"`)
 
-    if (!courseId) {
-      throw new Error('Course ID is required');
-    }
-    if (!request.Title?.trim()) {
-      throw new Error('Title is required');
-    }
-    if (!request.Description?.trim()) {
-      throw new Error('Description is required');
-    }
-    if (!request.LanguageId) {
-      throw new Error('LanguageId is required');
-    }
-
+    // Prepare JSON body according to Swagger: POST /api/admin/courses/{courseId}/details
     const requestBody = {
-      Title: request.Title.trim(),
-      Description: request.Description.trim(),
-      LanguageId: request.LanguageId,
-    };
+      Title: request.Title,
+      Description: request.Description,
+      LanguageId: request.LanguageId, // Language name, not GUID
+    }
 
-    const response = await http<{ message: string }>(
-      `/admin/courses/${courseId}/details`,
-      {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
+    console.log(`[addCourseDetail] Sending request to: ${API_BASE_URL}/addDetail?id=${courseId}`)
+    const response = await fetch(`${API_BASE_URL}/addDetail?id=${courseId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    console.log(`[addCourseDetail] Response status: ${response.status} ${response.statusText}`)
+    if (!response.ok) {
+      const responseText = await response.text()
+      console.error(`[addCourseDetail] Error response text:`, responseText)
+      let errorData: any = { error: 'Unknown error' }
+      try {
+        errorData = JSON.parse(responseText)
+      } catch {
+        errorData = { error: responseText || `Failed to add course detail: ${response.statusText}` }
       }
-    );
+      const errorMessage = errorData.error || errorData.message || `Failed to add course detail: ${response.statusText}`
+      console.error(`[addCourseDetail] Error message:`, errorMessage)
+      throw new Error(errorMessage)
+    }
 
-    console.log(`[addCourseDetail] ✓ Success:`, response);
+    const responseText = await response.text()
+    console.log(`[addCourseDetail] Success response text:`, responseText)
+    let result: any = {}
+    try {
+      result = JSON.parse(responseText)
+    } catch {
+      // If response is not JSON but status is OK, that's fine
+      console.log(`[addCourseDetail] Response is not JSON, but status is OK - assuming success`)
+      return
+    }
+    if (result.error) {
+      console.error(`[addCourseDetail] Result contains error:`, result.error)
+      throw new Error(result.error)
+    }
+    console.log(`[addCourseDetail] ✓ Successfully added course detail for ${request.LanguageId}`)
   } catch (error: any) {
-    console.error(`[addCourseDetail] ✗✗✗ ERROR:`, error);
-    throw error;
+    console.error(`[addCourseDetail] ✗ Error adding course detail for ${request.LanguageId}:`, error)
+    console.error(`[addCourseDetail] Error message:`, error?.message)
+    console.error(`[addCourseDetail] Error stack:`, error?.stack)
+    throw error
   }
 }
 
 /**
  * Update course detail (title, description) for a course
- * Backend: PUT /api/admin/courses/{courseId}/details
+ * Uses PUT /api/admin/courses/{courseId}/details with JSON body
  */
-export async function updateCourseDetail(
-  courseId: string,
-  request: AddCourseDetailRequest
-): Promise<void> {
+export async function updateCourseDetail(courseId: string, request: AddCourseDetailRequest): Promise<void> {
   try {
-    console.log(`[updateCourseDetail] Starting for courseId: ${courseId}, language: ${request.LanguageId}`);
+    console.log(`[updateCourseDetail] Starting for courseId: ${courseId}, language: ${request.LanguageId}`)
+    console.log(`[updateCourseDetail] Title: "${request.Title}", Description: "${request.Description}"`)
 
-    if (!courseId) {
-      throw new Error('Course ID is required');
-    }
-    if (!request.Title?.trim()) {
-      throw new Error('Title is required');
-    }
-    if (!request.Description?.trim()) {
-      throw new Error('Description is required');
-    }
-    if (!request.LanguageId) {
-      throw new Error('LanguageId is required');
-    }
-
+    // Prepare JSON body according to Swagger: PUT /api/admin/courses/{courseId}/details
+    // Swagger shows: { courseId, title, description, languageId }
     const requestBody = {
-      Title: request.Title.trim(),
-      Description: request.Description.trim(),
-      LanguageId: request.LanguageId,
-    };
+      Title: request.Title,
+      Description: request.Description,
+      LanguageId: request.LanguageId, // Language name, not GUID - will be converted to lowercase in API route
+    }
 
-    const response = await http<{ message: string }>(
-      `/admin/courses/${courseId}/details`,
-      {
-        method: 'PUT',
-        body: JSON.stringify(requestBody),
+    console.log(`[updateCourseDetail] Sending request to: ${API_BASE_URL}/updateDetail?id=${courseId}`)
+    const response = await fetch(`${API_BASE_URL}/updateDetail?id=${courseId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    console.log(`[updateCourseDetail] Response status: ${response.status} ${response.statusText}`)
+    if (!response.ok) {
+      const responseText = await response.text()
+      console.error(`[updateCourseDetail] Error response text:`, responseText)
+      let errorData: any = { error: 'Unknown error' }
+      try {
+        errorData = JSON.parse(responseText)
+      } catch {
+        errorData = { error: responseText || `Failed to update course detail: ${response.statusText}` }
       }
-    );
+      const errorMessage = errorData.error || errorData.message || `Failed to update course detail: ${response.statusText}`
+      console.error(`[updateCourseDetail] Error message:`, errorMessage)
+      throw new Error(errorMessage)
+    }
 
-    console.log(`[updateCourseDetail] ✓ Success:`, response);
+    const responseText = await response.text()
+    console.log(`[updateCourseDetail] Success response text:`, responseText)
+    let result: any = {}
+    try {
+      result = JSON.parse(responseText)
+    } catch {
+      // If response is not JSON but status is OK, that's fine
+      console.log(`[updateCourseDetail] Response is not JSON, but status is OK - assuming success`)
+      return
+    }
+    if (result.error) {
+      console.error(`[updateCourseDetail] Result contains error:`, result.error)
+      throw new Error(result.error)
+    }
+    console.log(`[updateCourseDetail] ✓ Successfully updated course detail for ${request.LanguageId}`)
   } catch (error: any) {
-    console.error(`[updateCourseDetail] ✗✗✗ ERROR:`, error);
-    throw error;
+    console.error(`[updateCourseDetail] ✗ Error updating course detail for ${request.LanguageId}:`, error)
+    console.error(`[updateCourseDetail] Error message:`, error?.message)
+    console.error(`[updateCourseDetail] Error stack:`, error?.stack)
+    throw error
   }
 }
 
 /**
- * Delete course
- * Backend: DELETE /api/admin/courses/{id}
+ * Create a new course
+ * Returns the created course ID if available in response
+ */
+export async function createCourse(request: CreateCourseRequest): Promise<{ id?: string; success: boolean; message?: string }> {
+  try {
+    const formData = new FormData()
+
+    // Map to backend format according to Swagger
+    // Swagger shows: CategoryId, Level, IsFree, Price, InstructorId, Thumbnail, UsedLanguageId, Rating, DurationMinutes
+    // Note: Title and Description are NOT in Swagger, so we don't send them here
+    // They will be added via addCourseDetail after course creation
+
+    formData.append('CategoryId', request.CategoryId)
+    formData.append('Level', request.LevelId) // Backend expects 'Level', not 'LevelId'
+    formData.append('IsFree', request.IsFree.toString())
+    formData.append('Price', request.Price.toString())
+
+    // Rating (optional)
+    if (typeof request.Rating === 'number') {
+      formData.append('Rating', request.Rating.toString())
+    }
+
+    // DurationMinutes (optional)
+    if (typeof request.DurationMinutes === 'number') {
+      formData.append('DurationMinutes', Math.max(0, Math.round(request.DurationMinutes)).toString())
+    }
+
+    // InstructorId (single, not array) - use first teacher ID
+    if (request.TeacherIds && request.TeacherIds.length > 0) {
+      formData.append('InstructorId', request.TeacherIds[0])
+    }
+
+    formData.append('UsedLanguageId', request.UsedLanguageId)
+
+    // Thumbnail (not Image)
+    if (request.Image) {
+      if (request.Image instanceof File) {
+        formData.append('Thumbnail', request.Image)
+      } else if (request.Image instanceof Blob) {
+        const file = new File([request.Image], 'course.jpg', { type: request.Image.type || 'image/jpeg' })
+        formData.append('Thumbnail', file)
+      }
+    }
+
+    // Use Next.js API route as proxy
+    const response = await fetch(`${API_BASE_URL}/create`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      const errorMessage = errorData.error || `Failed to create course: ${response.statusText}`
+      throw new Error(errorMessage)
+    }
+
+    // Check if response has error or contains created course ID
+    const responseData = await response.json().catch(() => ({ success: true }))
+
+    // Swagger shows response format: { id: "...", message: "Course created successfully" }
+    // Return the result with id field
+    return {
+      id: responseData.id,
+      success: true,
+      message: responseData.message,
+    }
+  } catch (error) {
+    console.error('Error creating course:', error)
+    throw error
+  }
+}
+
+/**
+ * Update a course
+ */
+export async function updateCourse(request: UpdateCourseRequest & { id: string }): Promise<void> {
+  try {
+    // Validate required fields
+    if (!request.CategoryId) {
+      throw new Error('CategoryId is required for course update')
+    }
+    if (!request.LevelId) {
+      throw new Error('LevelId is required for course update')
+    }
+    if (!request.TeacherIds || request.TeacherIds.length === 0) {
+      throw new Error('At least one TeacherId is required for course update')
+    }
+    if (!request.UsedLanguageId) {
+      throw new Error('UsedLanguageId is required for course update')
+    }
+
+    const formData = new FormData()
+
+    // Map to backend format according to Swagger
+    // Swagger shows: CategoryId, Level, IsFree, Price, InstructorId, Thumbnail, UsedLanguageId, Rating, DurationMinutes
+    // Note: Title and Description are NOT in Swagger, so we don't send them here
+    // They should be updated via updateCourseDetail if needed
+
+    formData.append('CategoryId', request.CategoryId)
+    formData.append('Level', request.LevelId) // Backend expects 'Level', not 'LevelId'
+    formData.append('IsFree', request.IsFree.toString())
+    formData.append('Price', request.Price.toString())
+
+    // Rating (optional)
+    if (typeof request.Rating === 'number') {
+      formData.append('Rating', request.Rating.toString())
+    }
+
+    // DurationMinutes (optional)
+    if (typeof request.DurationMinutes === 'number') {
+      formData.append('DurationMinutes', Math.max(0, Math.round(request.DurationMinutes)).toString())
+    }
+
+    // InstructorId (single, not array) - use first teacher ID
+    if (request.TeacherIds && request.TeacherIds.length > 0) {
+      formData.append('InstructorId', request.TeacherIds[0])
+    }
+
+    formData.append('UsedLanguageId', request.UsedLanguageId)
+
+    // Thumbnail (not Image) - only append if provided
+    // IMPORTANT: Backend may require Thumbnail even if empty, but Swagger shows it's optional
+    // If no image provided, don't send Thumbnail field at all (not empty string)
+    if (request.Image) {
+      if (request.Image instanceof File) {
+        formData.append('Thumbnail', request.Image)
+        console.log(`[updateCourse] Appending Thumbnail as File: ${request.Image.name}, ${request.Image.size} bytes`)
+      } else if (request.Image instanceof Blob) {
+        const file = new File([request.Image], 'course.jpg', { type: request.Image.type || 'image/jpeg' })
+        formData.append('Thumbnail', file)
+        console.log(`[updateCourse] Appending Thumbnail as Blob converted to File: ${file.size} bytes`)
+      }
+    } else {
+      console.log(`[updateCourse] No image provided - not sending Thumbnail field`)
+    }
+
+    console.log(`[updateCourse] Sending PUT request to: ${API_BASE_URL}/update?id=${request.id}`)
+    console.log(`[updateCourse] FormData keys:`, Array.from(formData.keys()))
+
+    // Use Next.js API route as proxy
+    const response = await fetch(`${API_BASE_URL}/update?id=${request.id}`, {
+      method: 'PUT',
+      body: formData,
+    })
+
+    console.log(`[updateCourse] Response status: ${response.status} ${response.statusText}`)
+
+    // Get response text first (can only be read once)
+    const responseText = await response.text()
+    console.log(`[updateCourse] Response text:`, responseText)
+
+    if (!response.ok) {
+      let errorMessage = `Failed to update course: ${response.status} ${response.statusText}`
+      let errorData: any = null
+      try {
+        errorData = JSON.parse(responseText)
+        console.error(`[updateCourse] Error response parsed:`, errorData)
+        if (errorData.errors) {
+          const errorText = Object.entries(errorData.errors)
+            .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+            .join('; ')
+          errorMessage = `${errorMessage} - ${errorText}`
+        } else if (errorData.title) {
+          errorMessage = `${errorMessage} - ${errorData.title}`
+        } else if (errorData.message) {
+          errorMessage = `${errorMessage} - ${errorData.message}`
+        } else if (errorData.error) {
+          errorMessage = errorData.error
+        } else if (errorData.originalError) {
+          errorMessage = errorData.originalError
+        }
+      } catch (parseError) {
+        console.error(`[updateCourse] Failed to parse error response:`, parseError)
+        if (responseText) {
+          errorMessage = `${errorMessage} - ${responseText}`
+        }
+      }
+      console.error(`[updateCourse] ✗✗✗ ERROR: ${errorMessage}`)
+      throw new Error(errorMessage)
+    }
+
+    // Parse success response
+    let responseData: any = { success: true, message: 'Course updated successfully' }
+    if (responseText && responseText.trim() !== '') {
+      try {
+        responseData = JSON.parse(responseText)
+        console.log(`[updateCourse] ✓ Success response parsed:`, responseData)
+        // Ensure message is present
+        if (!responseData.message && response.status === 200) {
+          responseData.message = 'Course updated successfully'
+        }
+      } catch (parseError) {
+        console.log(`[updateCourse] Response is not JSON, but status is OK - assuming success`)
+        // If response is not JSON but status is OK, that's fine
+        if (response.status === 200) {
+          responseData = { success: true, message: 'Course updated successfully' }
+        }
+      }
+    }
+
+    // If response has error field, throw it
+    if (responseData.error) {
+      console.error(`[updateCourse] Response contains error field:`, responseData.error)
+      throw new Error(responseData.error)
+    }
+
+    console.log(`[updateCourse] ✓✓✓ SUCCESS: Course updated successfully`)
+    console.log(`[updateCourse] Response message:`, responseData.message || 'Course updated successfully')
+  } catch (error) {
+    console.error('Error updating course:', error)
+    throw error
+  }
+}
+
+/**
+ * Delete a course
  */
 export async function deleteCourse(courseId: string): Promise<void> {
   try {
-    console.log(`[deleteCourse] Deleting course ${courseId}`);
+    const response = await fetch(`${API_BASE_URL}/delete?id=${courseId}`, {
+      method: 'DELETE',
+    })
 
-    if (!courseId) {
-      throw new Error('Course ID is required');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      const errorMessage = errorData.error || `Failed to delete course: ${response.statusText}`
+      throw new Error(errorMessage)
+    }
+  } catch (error) {
+    console.error('Error deleting course:', error)
+    throw error
+  }
+}
+
+/**
+ * Get all courses
+ */
+export async function getAllCourses(): Promise<CourseResponse[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/getAll`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch courses: ${response.statusText}`)
     }
 
-    const response = await http<void>(`/admin/courses/${courseId}`, {
-      method: 'DELETE',
-    });
-
-    console.log(`[deleteCourse] ✓ Success`);
-  } catch (error: any) {
-    console.error(`[deleteCourse] ✗✗✗ ERROR:`, error);
-    throw error;
+    const data = await response.json()
+    return Array.isArray(data) ? data : []
+  } catch (error) {
+    console.error('Error fetching courses:', error)
+    throw error
   }
+}
+
+/**
+ * Get course detail by ID
+ */
+export async function getCourseDetail(courseId: string): Promise<CourseResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/getDetail?id=${courseId}`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch course detail: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data
+  } catch (error) {
+    console.error('Error fetching course detail:', error)
+    throw error
+  }
+}
+
+// Test IDs for development - using provided IDs
+export const TEST_IDS = {
+  LECTURE_ID: '9c9b49c2-cb38-4d44-dac6-08de295b8d47',
+  COURSE_ID: 'c8aa90ad-cf8c-4712-79be-08de295aefbe',
+  USED_LANGUAGE_ID_ENGLISH: 'b2c3d4e5-2345-6789-abcd-ef0123456789', // Provided language ID
+  CATEGORY_ID_PROGRAMMING: '19ba8521-54d8-4f01-8935-6bac2e73011d', // programming (default)
+  TEACHER_ID: 'eb5342da-b48b-4085-73cf-08de2dbbd0d8', // ahmet yilmaz (default)
 }
