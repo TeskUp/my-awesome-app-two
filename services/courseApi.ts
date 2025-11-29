@@ -313,8 +313,11 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
       throw new Error('UsedLanguageId is required for course update')
     }
 
-    // Note: UsedLanguageId validation is handled by backend
-    // Frontend should ensure valid UsedLanguageId is selected from dropdown
+    // Automatically validate and fix UsedLanguageId if invalid
+    const validUsedLanguageId = await validateOrFixUsedLanguageId(request.UsedLanguageId)
+    if (validUsedLanguageId !== request.UsedLanguageId) {
+      console.warn(`[updateCourse] Fixed invalid UsedLanguageId: ${request.UsedLanguageId} -> ${validUsedLanguageId}`)
+    }
 
     const formData = new FormData()
 
@@ -343,7 +346,7 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
       formData.append('InstructorId', request.TeacherIds[0])
     }
 
-    formData.append('UsedLanguageId', request.UsedLanguageId)
+    formData.append('UsedLanguageId', validUsedLanguageId)
 
     // Thumbnail (not Image) - only append if provided
     // IMPORTANT: Backend may require Thumbnail even if empty, but Swagger shows it's optional
