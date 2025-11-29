@@ -506,8 +506,20 @@ export default function CoursesPage() {
         setFilteredCourses(mappedCourses)
         localStorage.setItem('coursesData', JSON.stringify(mappedCourses))
         
-        setIsModalOpen(false)
-        setEditingCourse(null)
+        // Find the updated course and update the editing course to show new data in modal
+        const updatedCourse = mappedCourses.find(c => c.id === editingCourse.id)
+        if (updatedCourse) {
+          console.log('✓ Updating editing course with fresh data from backend')
+          console.log('✓ Updated course title:', updatedCourse.title)
+          console.log('✓ Updated course description:', updatedCourse.description)
+          setEditingCourse(updatedCourse)
+          // Keep modal open to show updated data - modal will automatically refresh with new editingCourse
+        } else {
+          // If course not found, close modal
+          console.warn('⚠ Updated course not found in list, closing modal')
+          setIsModalOpen(false)
+          setEditingCourse(null)
+        }
       } catch (error: any) {
         console.error('✗✗✗ Error updating course:', error)
         console.error('Error message:', error?.message)
