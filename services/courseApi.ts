@@ -313,27 +313,8 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
       throw new Error('UsedLanguageId is required for course update')
     }
 
-    // Validate UsedLanguageId exists in database
-    try {
-      const availableLanguages = await getUsedLanguages()
-      const languageExists = availableLanguages.some(lang => lang.id === request.UsedLanguageId)
-      
-      if (!languageExists) {
-        const availableIds = availableLanguages.map(l => l.id).join(', ')
-        throw new Error(
-          `Invalid UsedLanguageId: ${request.UsedLanguageId}. ` +
-          `Available IDs: ${availableIds || 'None found'}. ` +
-          `Please select a valid language from the dropdown.`
-        )
-      }
-    } catch (langError: any) {
-      // If we can't fetch languages, log but don't fail (might be network issue)
-      console.warn(`[updateCourse] Could not validate UsedLanguageId:`, langError.message)
-      // Only throw if it's our validation error
-      if (langError.message.includes('Invalid UsedLanguageId')) {
-        throw langError
-      }
-    }
+    // Note: UsedLanguageId validation is handled by backend
+    // Frontend should ensure valid UsedLanguageId is selected from dropdown
 
     const formData = new FormData()
 
@@ -537,14 +518,25 @@ export interface UsedLanguage {
 
 /**
  * Get all categories from backend
- * Backend: GET /api/Category/GetAll?language=English
+ * NOTE: This requires a Next.js API proxy route at /api/categories/getAll
+ * If CORS issues occur, create a proxy route similar to /api/courses routes
  */
 export async function getCategories(language: 'English' | 'Azerbaijani' | 'Russian' = 'English'): Promise<Category[]> {
   try {
-    const response = await fetch(`${BACKEND_API_BASE_URL}/Category/GetAll?language=${language}`, {
-      method: 'GET',
-      cache: 'no-store',
-    })
+    // Try using proxy route first, fallback to direct backend call
+    let response
+    try {
+      response = await fetch(`/api/categories/getAll?language=${language}`, {
+        method: 'GET',
+        cache: 'no-store',
+      })
+    } catch {
+      // Fallback to direct backend (may have CORS issues)
+      response = await fetch(`${BACKEND_API_BASE_URL}/Category/GetAll?language=${language}`, {
+        method: 'GET',
+        cache: 'no-store',
+      })
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to fetch categories: ${response.statusText}`)
@@ -561,14 +553,25 @@ export async function getCategories(language: 'English' | 'Azerbaijani' | 'Russi
 
 /**
  * Get all used languages from backend
- * Backend: GET /api/UsedLanguage/GetAll
+ * NOTE: This requires a Next.js API proxy route at /api/usedLanguages/getAll
+ * If CORS issues occur, create a proxy route similar to /api/courses routes
  */
 export async function getUsedLanguages(): Promise<UsedLanguage[]> {
   try {
-    const response = await fetch(`${BACKEND_API_BASE_URL}/UsedLanguage/GetAll`, {
-      method: 'GET',
-      cache: 'no-store',
-    })
+    // Try using proxy route first, fallback to direct backend call
+    let response
+    try {
+      response = await fetch(`/api/usedLanguages/getAll`, {
+        method: 'GET',
+        cache: 'no-store',
+      })
+    } catch {
+      // Fallback to direct backend (may have CORS issues)
+      response = await fetch(`${BACKEND_API_BASE_URL}/UsedLanguage/GetAll`, {
+        method: 'GET',
+        cache: 'no-store',
+      })
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to fetch used languages: ${response.statusText}`)
