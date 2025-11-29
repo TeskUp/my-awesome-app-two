@@ -45,6 +45,23 @@ const LANGUAGE_ID_TO_NAME: { [key: string]: string } = {
   'b2c3d4e5-2345-6789-abcd-ef0123456789': 'English', // Default to English for addDetail
 }
 
+// Language name to enum value mapping (for backend LanguageType enum)
+// Backend uses JsonStringEnumConverter, so it accepts string enum values
+// Backend enum: 0=Azerbaijani, 1=Russian, 2=English
+// We send the string enum name which JsonStringEnumConverter will parse
+const LANGUAGE_NAME_TO_ENUM_STRING: { [key: string]: string } = {
+  'Azerbaijani': 'Azerbaijani',
+  'Russian': 'Russian',
+  'English': 'English',
+}
+
+// Helper function to normalize language name for backend
+function getLanguageEnumString(languageName: string): string {
+  // Ensure proper casing for enum string
+  const normalized = languageName.charAt(0).toUpperCase() + languageName.slice(1).toLowerCase()
+  return LANGUAGE_NAME_TO_ENUM_STRING[normalized] ?? 'English' // Default to English
+}
+
 // Default language ID (provided by user)
 export const DEFAULT_LANGUAGE_ID = 'b2c3d4e5-2345-6789-abcd-ef0123456789'
 
@@ -104,12 +121,18 @@ export async function addCourseDetail(courseId: string, request: AddCourseDetail
     console.log(`[addCourseDetail] Title: "${request.Title}", Description: "${request.Description}"`)
 
     // Prepare JSON body according to Swagger: POST /api/admin/courses/{courseId}/details
+    // Backend expects LanguageType enum with JsonStringEnumConverter
+    // Backend enum: 0=Azerbaijani, 1=Russian, 2=English
+    // JsonStringEnumConverter accepts string enum values like "English", "Azerbaijani", "Russian"
+    const languageEnumString = getLanguageEnumString(request.LanguageId)
     const requestBody = {
       Title: request.Title,
       Description: request.Description,
-      LanguageId: request.LanguageId, // Language name, not GUID
+      LanguageId: languageEnumString, // Send enum string value (e.g., "English")
     }
 
+    console.log(`[addCourseDetail] Language conversion: "${request.LanguageId}" -> "${languageEnumString}"`)
+    console.log(`[addCourseDetail] Request body:`, JSON.stringify(requestBody, null, 2))
     console.log(`[addCourseDetail] Sending request to: ${API_BASE_URL}/addDetail?id=${courseId}`)
     const response = await fetch(`${API_BASE_URL}/addDetail?id=${courseId}`, {
       method: 'POST',
@@ -167,13 +190,18 @@ export async function updateCourseDetail(courseId: string, request: AddCourseDet
     console.log(`[updateCourseDetail] Title: "${request.Title}", Description: "${request.Description}"`)
 
     // Prepare JSON body according to Swagger: PUT /api/admin/courses/{courseId}/details
-    // Swagger shows: { courseId, title, description, languageId }
+    // Backend expects LanguageType enum with JsonStringEnumConverter
+    // Backend enum: 0=Azerbaijani, 1=Russian, 2=English
+    // JsonStringEnumConverter accepts string enum values like "English", "Azerbaijani", "Russian"
+    const languageEnumString = getLanguageEnumString(request.LanguageId)
     const requestBody = {
       Title: request.Title,
       Description: request.Description,
-      LanguageId: request.LanguageId, // Language name, not GUID - will be converted to lowercase in API route
+      LanguageId: languageEnumString, // Send enum string value (e.g., "English")
     }
 
+    console.log(`[updateCourseDetail] Language conversion: "${request.LanguageId}" -> "${languageEnumString}"`)
+    console.log(`[updateCourseDetail] Request body:`, JSON.stringify(requestBody, null, 2))
     console.log(`[updateCourseDetail] Sending request to: ${API_BASE_URL}/updateDetail?id=${courseId}`)
     const response = await fetch(`${API_BASE_URL}/updateDetail?id=${courseId}`, {
       method: 'PUT',
@@ -313,18 +341,49 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
       throw new Error('UsedLanguageId is required for course update')
     }
 
-    // Automatically validate and fix UsedLanguageId if invalid
-    const validUsedLanguageId = await validateOrFixUsedLanguageId(request.UsedLanguageId)
-    if (validUsedLanguageId !== request.UsedLanguageId) {
-      console.warn(`[updateCourse] Fixed invalid UsedLanguageId: ${request.UsedLanguageId} -> ${validUsedLanguageId}`)
+    // Validate UsedLanguageId exists in database
+    try {
+      const availableLanguages = await getUsedLanguages()
+      const languageExists = availableLanguages.some(lang => lang.id === request.UsedLanguageId)
+      
+      if (!languageExists) {
+        const availableIds = availableLanguages.map(l => l.id).join(', ')
+        throw new Error(
+          `Invalid UsedLanguageId: ${request.UsedLanguageId}. ` +
+          `Available IDs: ${availableIds || 'None found'}. ` +
+          `Please select a valid language from the dropdown.`
+        )
+      }
+    } catch (langError: any) {
+      // If we can't fetch languages, log but don't fail (might be network issue)
+      console.warn(`[updateCourse] Could not validate UsedLanguageId:`, langError.message)
+      // Only throw if it's our validation error
+      if (langError.message.includes('Invalid UsedLanguageId')) {
+        throw langError
+      }
     }
 
     const formData = new FormData()
 
     // Map to backend format according to Swagger
     // Swagger shows: CategoryId, Level, IsFree, Price, InstructorId, Thumbnail, UsedLanguageId, Rating, DurationMinutes
-    // Note: Title and Description are NOT in Swagger, so we don't send them here
-    // They should be updated via updateCourseDetail if needed
+    // Also include Title and Description for updating CourseDetail
+
+    // Extract Title and Description from Details array (prefer English detail, or use first one)
+    const englishDetail = request.Details?.find(d => 
+      d.languageId === DEFAULT_LANGUAGE_ID || 
+      d.languageId === 'English' ||
+      d.languageId === 'b2c3d4e5-2345-6789-abcd-ef0123456789'
+    ) || request.Details?.[0]
+    
+    if (englishDetail) {
+      if (englishDetail.title) {
+        formData.append('Title', englishDetail.title)
+      }
+      if (englishDetail.description) {
+        formData.append('Description', englishDetail.description)
+      }
+    }
 
     formData.append('CategoryId', request.CategoryId)
     formData.append('Level', request.LevelId) // Backend expects 'Level', not 'LevelId'
@@ -346,7 +405,7 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
       formData.append('InstructorId', request.TeacherIds[0])
     }
 
-    formData.append('UsedLanguageId', validUsedLanguageId)
+    formData.append('UsedLanguageId', request.UsedLanguageId)
 
     // Thumbnail (not Image) - only append if provided
     // IMPORTANT: Backend may require Thumbnail even if empty, but Swagger shows it's optional
@@ -509,59 +568,48 @@ export async function getCourseDetail(courseId: string): Promise<CourseResponse>
 // Interfaces for API responses
 export interface Category {
   id: string
+  name: string
   isDeactive: boolean
-  details: Array<{
-    name: string
-    languageId: string
-  }>
-  // Helper: get name from first detail (for backward compatibility)
-  name?: string
 }
 
 export interface UsedLanguage {
   id: string
   isoCode: string
   isDeactive: boolean
-  courseIds?: string[]
-  teacherIds?: string[]
+}
+
+export interface Teacher {
+  id: string
+  fullName?: string
+  email?: string
+  phoneNumber?: string
+  specialty: string
+  rating: number
+  experienceYears: number
+  pricePerHourInAZN: number
+  isDeactive: boolean
 }
 
 /**
  * Get all categories from backend
- * NOTE: This requires a Next.js API proxy route at /api/categories/getAll
- * If CORS issues occur, create a proxy route similar to /api/courses routes
+ * Backend: GET /api/Category/GetAll?language=English
+ * Note: Categories are filtered by language, so we fetch for all languages and merge
  */
 export async function getCategories(language: 'English' | 'Azerbaijani' | 'Russian' = 'English'): Promise<Category[]> {
   try {
-    // Try using proxy route first, fallback to direct backend call
-    let response
-    try {
-      response = await fetch(`/api/categories/getAll?language=${language}`, {
-        method: 'GET',
-        cache: 'no-store',
-      })
-    } catch {
-      // Fallback to direct backend (may have CORS issues)
-      response = await fetch(`${BACKEND_API_BASE_URL}/Category/GetAll?language=${language}`, {
-        method: 'GET',
-        cache: 'no-store',
-      })
-    }
+    // Fetch categories for the specified language
+    const response = await fetch(`${BACKEND_API_BASE_URL}/Category/GetAll?language=${language}`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to fetch categories: ${response.statusText}`)
     }
 
     const data = await response.json()
-    // Filter out deactivated categories and add name helper
-    return Array.isArray(data) 
-      ? data
-          .filter((cat: Category) => !cat.isDeactive)
-          .map((cat: Category) => ({
-            ...cat,
-            name: cat.details?.[0]?.name || 'Unnamed Category', // Extract name from first detail
-          }))
-      : []
+    // Filter out deactivated categories
+    return Array.isArray(data) ? data.filter((cat: Category) => !cat.isDeactive) : []
   } catch (error) {
     console.error('Error fetching categories:', error)
     throw error
@@ -569,26 +617,45 @@ export async function getCategories(language: 'English' | 'Azerbaijani' | 'Russi
 }
 
 /**
+ * Get all categories for all languages (merged)
+ * This ensures we get all categories even if they don't have translations in a specific language
+ */
+export async function getAllCategories(): Promise<Category[]> {
+  try {
+    // Fetch categories for all three languages and merge unique categories by ID
+    const [englishCats, azerbaijaniCats, russianCats] = await Promise.all([
+      getCategories('English').catch(() => []),
+      getCategories('Azerbaijani').catch(() => []),
+      getCategories('Russian').catch(() => []),
+    ])
+
+    // Merge all categories, keeping unique ones by ID
+    const categoryMap = new Map<string, Category>()
+    
+    ;[...englishCats, ...azerbaijaniCats, ...russianCats].forEach((cat) => {
+      if (!categoryMap.has(cat.id)) {
+        categoryMap.set(cat.id, cat)
+      }
+    })
+
+    return Array.from(categoryMap.values())
+  } catch (error) {
+    console.error('Error fetching all categories:', error)
+    // Fallback to English only if merge fails
+    return getCategories('English')
+  }
+}
+
+/**
  * Get all used languages from backend
- * NOTE: This requires a Next.js API proxy route at /api/usedLanguages/getAll
- * If CORS issues occur, create a proxy route similar to /api/courses routes
+ * Backend: GET /api/UsedLanguage/GetAll
  */
 export async function getUsedLanguages(): Promise<UsedLanguage[]> {
   try {
-    // Try using proxy route first, fallback to direct backend call
-    let response
-    try {
-      response = await fetch(`/api/usedLanguages/getAll`, {
-        method: 'GET',
-        cache: 'no-store',
-      })
-    } catch {
-      // Fallback to direct backend (may have CORS issues)
-      response = await fetch(`${BACKEND_API_BASE_URL}/UsedLanguage/GetAll`, {
-        method: 'GET',
-        cache: 'no-store',
-      })
-    }
+    const response = await fetch(`${BACKEND_API_BASE_URL}/UsedLanguage/GetAll`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to fetch used languages: ${response.statusText}`)
@@ -596,9 +663,43 @@ export async function getUsedLanguages(): Promise<UsedLanguage[]> {
 
     const data = await response.json()
     // Filter out deactivated languages
-    return Array.isArray(data) ? data.filter((lang: UsedLanguage) => !lang.isDeactive) : []
+    const languages = Array.isArray(data) ? data.filter((lang: UsedLanguage) => !lang.isDeactive) : []
+    
+    // Log for debugging
+    console.log(`[getUsedLanguages] Fetched ${languages.length} active languages:`, languages.map(l => ({ id: l.id, isoCode: l.isoCode })))
+    
+    return languages
   } catch (error) {
     console.error('Error fetching used languages:', error)
+    throw error
+  }
+}
+
+/**
+ * Get all teachers from backend
+ * Backend: GET /api/Teacher/GetAll
+ */
+export async function getTeachers(): Promise<Teacher[]> {
+  try {
+    const response = await fetch(`${BACKEND_API_BASE_URL}/Teacher/GetAll`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch teachers: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    // Filter out deactivated teachers
+    const teachers = Array.isArray(data) ? data.filter((teacher: Teacher) => !teacher.isDeactive) : []
+    
+    // Log for debugging
+    console.log(`[getTeachers] Fetched ${teachers.length} active teachers:`, teachers.map(t => ({ id: t.id, name: t.fullName })))
+    
+    return teachers
+  } catch (error) {
+    console.error('Error fetching teachers:', error)
     throw error
   }
 }
@@ -610,29 +711,4 @@ export const TEST_IDS = {
   USED_LANGUAGE_ID_ENGLISH: 'b2c3d4e5-2345-6789-abcd-ef0123456789', // Provided language ID
   CATEGORY_ID_PROGRAMMING: '19ba8521-54d8-4f01-8935-6bac2e73011d', // programming (default)
   TEACHER_ID: 'eb5342da-b48b-4085-73cf-08de2dbbd0d8', // ahmet yilmaz (default)
-}
-
-/**
- * Validate and fix UsedLanguageId - returns a valid ID
- * If the provided ID is invalid, returns the default English ID
- */
-export async function validateOrFixUsedLanguageId(usedLanguageId: string | undefined): Promise<string> {
-  if (!usedLanguageId) {
-    return TEST_IDS.USED_LANGUAGE_ID_ENGLISH
-  }
-
-  try {
-    const validLanguages = await getUsedLanguages()
-    const languageExists = validLanguages.some(lang => lang.id === usedLanguageId)
-    
-    if (languageExists) {
-      return usedLanguageId
-    } else {
-      console.warn(`[validateOrFixUsedLanguageId] Invalid UsedLanguageId: ${usedLanguageId}, using default English ID`)
-      return TEST_IDS.USED_LANGUAGE_ID_ENGLISH
-    }
-  } catch (error) {
-    console.warn(`[validateOrFixUsedLanguageId] Could not validate UsedLanguageId, using default:`, error)
-    return TEST_IDS.USED_LANGUAGE_ID_ENGLISH
-  }
 }
