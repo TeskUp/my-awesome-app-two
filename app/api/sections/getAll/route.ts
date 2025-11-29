@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAdminToken } from '@/services/authApi'
 
 const API_BASE_URL = 'https://teskup-production.up.railway.app/api'
 
@@ -16,14 +17,27 @@ export async function GET(request: NextRequest) {
 
     console.log('Fetching sections for course:', courseId)
 
-    // Public endpoint: GET /api/courses/{courseId}/sections
-    const url = `${API_BASE_URL}/courses/${courseId}/sections`
+    // Get admin token for authentication
+    let authToken: string | null = null
+    try {
+      authToken = await getAdminToken()
+    } catch (authError) {
+      console.error('Failed to get admin token:', authError)
+      return NextResponse.json(
+        { error: 'Failed to authenticate as admin. Please check admin credentials.' },
+        { status: 401 }
+      )
+    }
+
+    // Admin endpoint: GET /api/admin/courses/{courseId}/sections
+    const url = `${API_BASE_URL}/admin/courses/${courseId}/sections`
     console.log('Fetching from:', url)
     
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json, text/plain, */*',
+        'Authorization': `Bearer ${authToken}`,
       },
       cache: 'no-store',
     })
