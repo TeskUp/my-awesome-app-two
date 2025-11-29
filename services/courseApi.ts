@@ -239,13 +239,13 @@ export async function createCourse(request: CreateCourseRequest): Promise<{ id?:
     formData.append('IsFree', request.IsFree.toString())
     formData.append('Price', request.Price.toString())
 
-    // Rating (optional)
-    if (typeof request.Rating === 'number') {
+    // Rating (optional) - handle NaN
+    if (typeof request.Rating === 'number' && !isNaN(request.Rating)) {
       formData.append('Rating', request.Rating.toString())
     }
 
-    // DurationMinutes (optional)
-    if (typeof request.DurationMinutes === 'number') {
+    // DurationMinutes (optional) - handle NaN
+    if (typeof request.DurationMinutes === 'number' && !isNaN(request.DurationMinutes)) {
       formData.append('DurationMinutes', Math.max(0, Math.round(request.DurationMinutes)).toString())
     }
 
@@ -313,6 +313,28 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
       throw new Error('UsedLanguageId is required for course update')
     }
 
+    // Validate UsedLanguageId exists in database
+    try {
+      const availableLanguages = await getUsedLanguages()
+      const languageExists = availableLanguages.some(lang => lang.id === request.UsedLanguageId)
+      
+      if (!languageExists) {
+        const availableIds = availableLanguages.map(l => l.id).join(', ')
+        throw new Error(
+          `Invalid UsedLanguageId: ${request.UsedLanguageId}. ` +
+          `Available IDs: ${availableIds || 'None found'}. ` +
+          `Please select a valid language from the dropdown.`
+        )
+      }
+    } catch (langError: any) {
+      // If we can't fetch languages, log but don't fail (might be network issue)
+      console.warn(`[updateCourse] Could not validate UsedLanguageId:`, langError.message)
+      // Only throw if it's our validation error
+      if (langError.message.includes('Invalid UsedLanguageId')) {
+        throw langError
+      }
+    }
+
     const formData = new FormData()
 
     // Map to backend format according to Swagger
@@ -325,13 +347,13 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
     formData.append('IsFree', request.IsFree.toString())
     formData.append('Price', request.Price.toString())
 
-    // Rating (optional)
-    if (typeof request.Rating === 'number') {
+    // Rating (optional) - handle NaN
+    if (typeof request.Rating === 'number' && !isNaN(request.Rating)) {
       formData.append('Rating', request.Rating.toString())
     }
 
-    // DurationMinutes (optional)
-    if (typeof request.DurationMinutes === 'number') {
+    // DurationMinutes (optional) - handle NaN
+    if (typeof request.DurationMinutes === 'number' && !isNaN(request.DurationMinutes)) {
       formData.append('DurationMinutes', Math.max(0, Math.round(request.DurationMinutes)).toString())
     }
 
@@ -496,6 +518,67 @@ export async function getCourseDetail(courseId: string): Promise<CourseResponse>
     return data
   } catch (error) {
     console.error('Error fetching course detail:', error)
+    throw error
+  }
+}
+
+// Interfaces for API responses
+export interface Category {
+  id: string
+  name: string
+  isDeactive: boolean
+}
+
+export interface UsedLanguage {
+  id: string
+  isoCode: string
+  isDeactive: boolean
+}
+
+/**
+ * Get all categories from backend
+ * Backend: GET /api/Category/GetAll?language=English
+ */
+export async function getCategories(language: 'English' | 'Azerbaijani' | 'Russian' = 'English'): Promise<Category[]> {
+  try {
+    const response = await fetch(`${BACKEND_API_BASE_URL}/Category/GetAll?language=${language}`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch categories: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    // Filter out deactivated categories
+    return Array.isArray(data) ? data.filter((cat: Category) => !cat.isDeactive) : []
+  } catch (error) {
+    console.error('Error fetching categories:', error)
+    throw error
+  }
+}
+
+/**
+ * Get all used languages from backend
+ * Backend: GET /api/UsedLanguage/GetAll
+ */
+export async function getUsedLanguages(): Promise<UsedLanguage[]> {
+  try {
+    const response = await fetch(`${BACKEND_API_BASE_URL}/UsedLanguage/GetAll`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch used languages: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    // Filter out deactivated languages
+    return Array.isArray(data) ? data.filter((lang: UsedLanguage) => !lang.isDeactive) : []
+  } catch (error) {
+    console.error('Error fetching used languages:', error)
     throw error
   }
 }
