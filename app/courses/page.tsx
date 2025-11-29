@@ -350,10 +350,10 @@ export default function CoursesPage() {
         console.log('Has Image:', !!imageBlob)
         console.log('=====================')
         
-        await updateCourse({
-          id: editingCourse.id,
-          // DriveLink removed - not in Swagger
-          IsFree: course.isFree,
+              await updateCourse({
+                id: editingCourse.id,
+                // DriveLink removed - not in Swagger
+                IsFree: course.isFree,
           Price: course.price,
           Image: imageBlob,
           UsedLanguageId: course.usedLanguageId,

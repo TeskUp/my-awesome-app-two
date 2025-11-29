@@ -253,11 +253,11 @@ export default function NewsModal({
                   }}
                   className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all bg-white"
                 >
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
+                      {categories.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                      ))}
                 </select>
               </div>
 

@@ -220,7 +220,7 @@ export function getCategoryId(categoryName: string): string {
     console.error(`getCategoryId: UNKNOWN CATEGORY "${categoryName}" (normalized: "${normalizedCategory}")`)
     return ''
   }
-
+  
   console.log(`getCategoryId: "${categoryName}" -> "${normalizedCategory}" -> "${categoryId}"`)
   return categoryId
 }
