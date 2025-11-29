@@ -506,19 +506,59 @@ export default function CoursesPage() {
         setFilteredCourses(mappedCourses)
         localStorage.setItem('coursesData', JSON.stringify(mappedCourses))
         
-        // Find the updated course and update the editing course to show new data in modal
-        const updatedCourse = mappedCourses.find(c => c.id === editingCourse.id)
-        if (updatedCourse) {
-          console.log('✓ Updating editing course with fresh data from backend')
-          console.log('✓ Updated course title:', updatedCourse.title)
-          console.log('✓ Updated course description:', updatedCourse.description)
-          setEditingCourse(updatedCourse)
+        // Fetch the updated course detail directly from backend to get fresh data
+        // This ensures we get the latest title and description from details
+        try {
+          console.log('✓ Fetching updated course detail from backend for ID:', editingCourse.id, 'with language: English')
+          const updatedCourseDetail = await getCourseDetail(editingCourse.id, 'English')
+          
+          // Map the course detail response to CourseItem format
+          const englishDetail = updatedCourseDetail.details?.find((d: CourseDetail) => 
+            d.languageId === 'English' || 
+            d.languageId === 'b2c3d4e5-2345-6789-abcd-ef0123456789' ||
+            d.languageId === getDefaultLanguageId() ||
+            d.languageId === '669f256a-0b60-4989-bf88-4817b50dd365'
+          ) || updatedCourseDetail.details?.[0]
+          
+          const refreshedCourse: CourseItem = {
+            id: updatedCourseDetail.id || editingCourse.id,
+            title: englishDetail?.title || ((updatedCourseDetail as any).title && (updatedCourseDetail as any).title !== 'Untitled' && (updatedCourseDetail as any).title !== 'No Title' ? (updatedCourseDetail as any).title : '') || '',
+            description: englishDetail?.description || ((updatedCourseDetail as any).description && (updatedCourseDetail as any).description !== 'No Description' ? (updatedCourseDetail as any).description : '') || '',
+            driveLink: updatedCourseDetail.driveLink || '',
+            isFree: updatedCourseDetail.isFree ?? false,
+            price: updatedCourseDetail.price || 0,
+            imageUrl: updatedCourseDetail.imageUrl || '',
+            usedLanguageId: updatedCourseDetail.usedLanguageId || 'b2c3d4e5-2345-6789-abcd-ef0123456789',
+            categoryId: updatedCourseDetail.categoryId || '',
+            category: updatedCourseDetail.category,
+            levelId: updatedCourseDetail.levelId || 'Beginner',
+            teacherIds: updatedCourseDetail.teacherIds || [],
+            details: updatedCourseDetail.details || [],
+            durationMinutes: updatedCourseDetail.durationMinutes,
+            rating: updatedCourseDetail.rating,
+            createdAt: updatedCourseDetail.createdAt || new Date().toISOString(),
+            updatedAt: updatedCourseDetail.updatedAt || new Date().toISOString(),
+          }
+          
+          console.log('✓✓✓ Refreshed course data from getCourseDetail:')
+          console.log('  Title:', refreshedCourse.title)
+          console.log('  Description:', refreshedCourse.description)
+          console.log('  Details array:', refreshedCourse.details)
+          
+          setEditingCourse(refreshedCourse)
           // Keep modal open to show updated data - modal will automatically refresh with new editingCourse
-        } else {
-          // If course not found, close modal
-          console.warn('⚠ Updated course not found in list, closing modal')
-          setIsModalOpen(false)
-          setEditingCourse(null)
+        } catch (detailError: any) {
+          console.error('⚠ Failed to fetch course detail, using data from list:', detailError)
+          // Fallback to using data from mappedCourses
+          const updatedCourse = mappedCourses.find(c => c.id === editingCourse.id)
+          if (updatedCourse) {
+            console.log('✓ Using course data from list')
+            setEditingCourse(updatedCourse)
+          } else {
+            console.warn('⚠ Updated course not found in list, closing modal')
+            setIsModalOpen(false)
+            setEditingCourse(null)
+          }
         }
       } catch (error: any) {
         console.error('✗✗✗ Error updating course:', error)
