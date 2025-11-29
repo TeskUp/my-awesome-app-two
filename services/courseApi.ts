@@ -367,33 +367,21 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
     }
 
     // Validate and fix UsedLanguageId if invalid (prevents backend errors)
+    const originalUsedLanguageId = request.UsedLanguageId
     const validUsedLanguageId = validateOrFixUsedLanguageId(request.UsedLanguageId)
-    if (validUsedLanguageId !== request.UsedLanguageId) {
-      console.warn(`[updateCourse] Fixed invalid UsedLanguageId: ${request.UsedLanguageId} -> ${validUsedLanguageId}`)
+    if (validUsedLanguageId !== originalUsedLanguageId) {
+      console.warn(`[updateCourse] ⚠️ Fixed invalid UsedLanguageId: ${originalUsedLanguageId} -> ${validUsedLanguageId}`)
       request.UsedLanguageId = validUsedLanguageId
+    } else {
+      console.log(`[updateCourse] ✓ UsedLanguageId is valid: ${validUsedLanguageId}`)
     }
 
     const formData = new FormData()
 
     // Map to backend format according to Swagger
     // Swagger shows: CategoryId, Level, IsFree, Price, InstructorId, Thumbnail, UsedLanguageId, Rating, DurationMinutes
-    // Also include Title and Description for updating CourseDetail
-
-    // Extract Title and Description from Details array (prefer English detail, or use first one)
-    const englishDetail = request.Details?.find(d => 
-      d.languageId === DEFAULT_LANGUAGE_ID || 
-      d.languageId === 'English' ||
-      d.languageId === 'b2c3d4e5-2345-6789-abcd-ef0123456789'
-    ) || request.Details?.[0]
-    
-    if (englishDetail) {
-      if (englishDetail.title) {
-        formData.append('Title', englishDetail.title)
-      }
-      if (englishDetail.description) {
-        formData.append('Description', englishDetail.description)
-      }
-    }
+    // NOTE: Title and Description are NOT sent here - they are updated separately via updateCourseDetail
+    // This prevents UpdateCourseAsync from overwriting CourseDetail changes made by updateCourseDetail
 
     formData.append('CategoryId', request.CategoryId)
     formData.append('Level', request.LevelId) // Backend expects 'Level', not 'LevelId'
@@ -415,7 +403,9 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
       formData.append('InstructorId', request.TeacherIds[0])
     }
 
+    // Use the validated/fixed UsedLanguageId
     formData.append('UsedLanguageId', request.UsedLanguageId)
+    console.log(`[updateCourse] Sending UsedLanguageId to backend: ${request.UsedLanguageId}`)
 
     // Thumbnail (not Image) - only append if provided
     // IMPORTANT: Backend may require Thumbnail even if empty, but Swagger shows it's optional
@@ -661,6 +651,14 @@ export async function getAllCategories(): Promise<Category[]> {
  * Get all categories from backend
  * Backend: GET /api/Category/GetAll?language=English
  * Note: This now returns ALL categories (merged from all languages) to ensure dropdowns are dynamic
+ * 
+ * IMPORTANT: This function fetches categories for ALL languages (English, Azerbaijani, Russian)
+ * and merges them to show all available categories in dropdowns, regardless of language.
+ * 
+ * If your component is not showing all categories, make sure:
+ * 1. You're calling this function (not using cached/hardcoded data)
+ * 2. The component refreshes when categories are fetched
+ * 3. You're not filtering the results on the frontend
  */
 export async function getCategories(language: 'English' | 'Azerbaijani' | 'Russian' = 'English'): Promise<Category[]> {
   // Always return all categories to ensure dropdowns are dynamic
