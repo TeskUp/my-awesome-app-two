@@ -341,27 +341,8 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
       throw new Error('UsedLanguageId is required for course update')
     }
 
-    // Validate UsedLanguageId exists in database
-    try {
-      const availableLanguages = await getUsedLanguages()
-      const languageExists = availableLanguages.some(lang => lang.id === request.UsedLanguageId)
-      
-      if (!languageExists) {
-        const availableIds = availableLanguages.map(l => l.id).join(', ')
-        throw new Error(
-          `Invalid UsedLanguageId: ${request.UsedLanguageId}. ` +
-          `Available IDs: ${availableIds || 'None found'}. ` +
-          `Please select a valid language from the dropdown.`
-        )
-      }
-    } catch (langError: any) {
-      // If we can't fetch languages, log but don't fail (might be network issue)
-      console.warn(`[updateCourse] Could not validate UsedLanguageId:`, langError.message)
-      // Only throw if it's our validation error
-      if (langError.message.includes('Invalid UsedLanguageId')) {
-        throw langError
-      }
-    }
+    // Note: Backend will validate UsedLanguageId exists
+    // We don't validate here to avoid CORS issues and let backend handle validation
 
     const formData = new FormData()
 
