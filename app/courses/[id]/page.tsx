@@ -553,14 +553,20 @@ export default function CourseDetailPage() {
                                   {lecture.isLocked ? 'Locked' : 'Open'}
                                 </span>
                                 <button
-                                  onClick={() => handleEditLecture(lecture)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleEditLecture(lecture)
+                                  }}
                                   className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
                                   title="Edit"
                                 >
                                   <Edit2 className="w-4 h-4" />
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteLecture(lecture)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteLecture(lecture)
+                                  }}
                                   className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                   title="Delete"
                                 >
