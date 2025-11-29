@@ -546,9 +546,9 @@ export async function getAllCourses(): Promise<CourseResponse[]> {
 /**
  * Get course detail by ID
  */
-export async function getCourseDetail(courseId: string): Promise<CourseResponse> {
+export async function getCourseDetail(courseId: string, language: string = 'English'): Promise<CourseResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/getDetail?id=${courseId}`, {
+    const response = await fetch(`${API_BASE_URL}/getDetail?id=${courseId}&language=${encodeURIComponent(language)}`, {
       method: 'GET',
       cache: 'no-store',
     })

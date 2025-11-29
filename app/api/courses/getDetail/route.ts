@@ -14,9 +14,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    console.log('Fetching course detail for ID:', id)
+    const language = searchParams.get('language') || 'English'
+    
+    console.log('Fetching course detail for ID:', id, 'with language:', language)
 
-    const url = `${API_BASE_URL}/courses/${id}`
+    const url = `${API_BASE_URL}/courses/${id}?language=${encodeURIComponent(language)}`
     console.log('Fetching from:', url)
     
     const response = await fetch(url, {
