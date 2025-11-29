@@ -110,7 +110,7 @@ export default function CourseModal({
       setImagePreview('')
       setImageFile(null)
     }
-  }, [course, categories])
+  }, [course, categories, teachers])
 
   const handleImageChange = (url: string) => {
     setFormData({ ...formData })
