@@ -65,6 +65,31 @@ function getLanguageEnumString(languageName: string): string {
 // Default language ID (provided by user)
 export const DEFAULT_LANGUAGE_ID = 'b2c3d4e5-2345-6789-abcd-ef0123456789'
 
+// Valid UsedLanguage IDs from seed data
+const VALID_USED_LANGUAGE_IDS = [
+  'a1b2c3d4-1234-5678-9abc-def012345678', // Azerbaijani (az)
+  'b2c3d4e5-2345-6789-abcd-ef0123456789', // English (en)
+  'c3d4e5f6-3456-789a-bcde-f01234567890', // Russian (ru)
+]
+
+/**
+ * Validate and fix UsedLanguageId - if invalid, return default (English)
+ */
+export function validateOrFixUsedLanguageId(usedLanguageId: string | undefined | null): string {
+  if (!usedLanguageId) {
+    return DEFAULT_LANGUAGE_ID
+  }
+  
+  // Check if it's a valid UsedLanguageId
+  if (VALID_USED_LANGUAGE_IDS.includes(usedLanguageId)) {
+    return usedLanguageId
+  }
+  
+  // Invalid ID - log warning and return default
+  console.warn(`[validateOrFixUsedLanguageId] Invalid UsedLanguageId: ${usedLanguageId}, using default: ${DEFAULT_LANGUAGE_ID}`)
+  return DEFAULT_LANGUAGE_ID
+}
+
 // Level options - from Swagger dropdown
 export const LEVEL_OPTIONS = ['Beginner', 'Novice', 'Intermediate', 'Proficient', 'Advanced']
 
@@ -341,8 +366,12 @@ export async function updateCourse(request: UpdateCourseRequest & { id: string }
       throw new Error('UsedLanguageId is required for course update')
     }
 
-    // Note: Backend will validate UsedLanguageId exists
-    // We don't validate here to avoid CORS issues and let backend handle validation
+    // Validate and fix UsedLanguageId if invalid (prevents backend errors)
+    const validUsedLanguageId = validateOrFixUsedLanguageId(request.UsedLanguageId)
+    if (validUsedLanguageId !== request.UsedLanguageId) {
+      console.warn(`[updateCourse] Fixed invalid UsedLanguageId: ${request.UsedLanguageId} -> ${validUsedLanguageId}`)
+      request.UsedLanguageId = validUsedLanguageId
+    }
 
     const formData = new FormData()
 
@@ -572,13 +601,11 @@ export interface Teacher {
 }
 
 /**
- * Get all categories from backend
- * Backend: GET /api/Category/GetAll?language=English
- * Note: Categories are filtered by language, so we fetch for all languages and merge
+ * Internal function to fetch categories for a specific language from backend
+ * Backend: GET /api/Category/GetAll?language={language}
  */
-export async function getCategories(language: 'English' | 'Azerbaijani' | 'Russian' = 'English'): Promise<Category[]> {
+async function _fetchCategoriesForLanguage(language: 'English' | 'Azerbaijani' | 'Russian'): Promise<Category[]> {
   try {
-    // Fetch categories for the specified language
     const response = await fetch(`${BACKEND_API_BASE_URL}/Category/GetAll?language=${language}`, {
       method: 'GET',
       cache: 'no-store',
@@ -592,22 +619,23 @@ export async function getCategories(language: 'English' | 'Azerbaijani' | 'Russi
     // Filter out deactivated categories
     return Array.isArray(data) ? data.filter((cat: Category) => !cat.isDeactive) : []
   } catch (error) {
-    console.error('Error fetching categories:', error)
-    throw error
+    console.error(`Error fetching categories for ${language}:`, error)
+    return [] // Return empty array instead of throwing
   }
 }
 
 /**
  * Get all categories for all languages (merged)
  * This ensures we get all categories even if they don't have translations in a specific language
+ * This is the default behavior to ensure dropdowns are dynamic
  */
 export async function getAllCategories(): Promise<Category[]> {
   try {
     // Fetch categories for all three languages and merge unique categories by ID
     const [englishCats, azerbaijaniCats, russianCats] = await Promise.all([
-      getCategories('English').catch(() => []),
-      getCategories('Azerbaijani').catch(() => []),
-      getCategories('Russian').catch(() => []),
+      _fetchCategoriesForLanguage('English'),
+      _fetchCategoriesForLanguage('Azerbaijani'),
+      _fetchCategoriesForLanguage('Russian'),
     ])
 
     // Merge all categories, keeping unique ones by ID
@@ -619,12 +647,25 @@ export async function getAllCategories(): Promise<Category[]> {
       }
     })
 
-    return Array.from(categoryMap.values())
+    const allCategories = Array.from(categoryMap.values())
+    console.log(`[getAllCategories] Fetched ${allCategories.length} unique categories across all languages`)
+    return allCategories
   } catch (error) {
     console.error('Error fetching all categories:', error)
     // Fallback to English only if merge fails
-    return getCategories('English')
+    return _fetchCategoriesForLanguage('English')
   }
+}
+
+/**
+ * Get all categories from backend
+ * Backend: GET /api/Category/GetAll?language=English
+ * Note: This now returns ALL categories (merged from all languages) to ensure dropdowns are dynamic
+ */
+export async function getCategories(language: 'English' | 'Azerbaijani' | 'Russian' = 'English'): Promise<Category[]> {
+  // Always return all categories to ensure dropdowns are dynamic
+  // The language parameter is kept for backward compatibility but ignored
+  return getAllCategories()
 }
 
 /**
