@@ -6,15 +6,14 @@ import { NewsItem } from '@/app/page'
 
 interface NewsModalProps {
   news: NewsItem | null
-  categories?: string[]
+  categories?: Array<{ id: string; name: string }>
   onSave: (news: NewsItem, imageFile?: File | string) => void
   onClose: () => void
 }
 
 export default function NewsModal({
   news,
-  // Fallback siyahı: psychology / programming / proqramlasdirma
-  categories = ['psychology', 'programming', 'proqramlasdirma'],
+  categories = [],
   onSave,
   onClose,
 }: NewsModalProps) {
@@ -56,8 +55,8 @@ export default function NewsModal({
         category: news.category?.trim() || 'News',
       })
     } else {
-      // Yeni xəbər üçün default kateqoriya: siyahının ilk elementi (psychology)
-      const defaultCategory = categories[0] || 'psychology'
+      // Yeni xəbər üçün default kateqoriya: siyahının ilk elementi
+      const defaultCategory = categories.length > 0 ? categories[0].name : ''
       setFormData({
         title: '',
         description: '',
@@ -70,7 +69,7 @@ export default function NewsModal({
       setImagePreview('')
       setImageFile(null)
     }
-  }, [news])
+  }, [news, categories])
 
   const handleImageChange = (url: string) => {
     setFormData({ ...formData, image: url })
@@ -245,19 +244,23 @@ export default function NewsModal({
                 </label>
                 <select
                   required
-                  value={formData.category || categories[0] || ''}
+                  value={formData.category || (categories.length > 0 ? categories[0].name : '') || ''}
                   onChange={(e) => {
-                    const selectedCategory = e.target.value || 'News'
+                    const selectedCategory = e.target.value || (categories.length > 0 ? categories[0].name : '')
                     console.log('Category selected:', selectedCategory)
                     setFormData({ ...formData, category: selectedCategory })
                   }}
                   className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all bg-white"
                 >
-                      {categories.map((category) => (
-                          <option key={category} value={category}>
-                            {category}
-                          </option>
-                      ))}
+                  {categories.length === 0 ? (
+                    <option value="">Kateqoriya yüklənir...</option>
+                  ) : (
+                    categories.map((category) => (
+                      <option key={category.id} value={category.name}>
+                        {category.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 

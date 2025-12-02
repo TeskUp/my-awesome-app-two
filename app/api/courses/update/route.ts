@@ -38,7 +38,13 @@ export async function PUT(request: NextRequest) {
     
     // InstructorId (single, not TeacherIds array)
     const instructorId = incomingFormData.get('InstructorId') || incomingFormData.getAll('TeacherIds')[0]
-    if (instructorId) formData.append('InstructorId', String(instructorId))
+    if (!instructorId || String(instructorId).trim() === '') {
+      return NextResponse.json(
+        { error: 'InstructorId is required. Please select at least one teacher.' },
+        { status: 400 }
+      )
+    }
+    formData.append('InstructorId', String(instructorId))
     
     // Thumbnail (not Image) - handle File type
     const thumbnail = incomingFormData.get('Thumbnail') || incomingFormData.get('Image')
@@ -72,8 +78,11 @@ export async function PUT(request: NextRequest) {
     }
     
     // Validate required fields
-    if (!categoryId) {
-      console.error('✗ CategoryId is missing!')
+    if (!categoryId || String(categoryId).trim() === '') {
+      return NextResponse.json(
+        { error: 'CategoryId is required. Please select a category.' },
+        { status: 400 }
+      )
     }
     if (!level) {
       console.error('✗ Level is missing!')

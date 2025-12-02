@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, Edit2, Trash2, BookOpen, Clock, Lock, Unlock, ChevronDown, ChevronUp, Video } from 'lucide-react'
+import { ArrowLeft, Plus, Edit2, Trash2, BookOpen, Clock, Lock, Unlock, ChevronDown, ChevronUp, Video, FileQuestion } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import ToastContainer, { ToastMessage } from '@/components/ToastContainer'
 import ConfirmModal from '@/components/ConfirmModal'
 import SectionModal from '@/components/SectionModal'
 import LectureModal from '@/components/LectureModal'
+import QuizModal, { QuizQuestion } from '@/components/QuizModal'
 import { getCourseDetail, CourseResponse } from '@/services/courseApi'
 import { createSection, updateSection, deleteSection, getAllSections, Section } from '@/services/sectionApi'
 import { createLecture, updateLecture, deleteLecture, getAllLectures, Lecture } from '@/services/lectureApi'
+import { createQuiz, getAllQuizzes, deleteQuiz, Quiz } from '@/services/quizApi'
 import VideoPlayer from '@/components/VideoPlayer'
 import { User, Tag, Award, DollarSign, Globe, Calendar } from 'lucide-react'
 
@@ -22,16 +24,18 @@ export default function CourseDetailPage() {
   const [course, setCourse] = useState<CourseResponse | null>(null)
   const [sections, setSections] = useState<Section[]>([])
   const [lectures, setLectures] = useState<{ [sectionId: string]: Lecture[] }>({})
+  const [quizzes, setQuizzes] = useState<{ [sectionId: string]: Quiz[] }>({})
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false)
   const [editingSection, setEditingSection] = useState<Section | null>(null)
   const [isLectureModalOpen, setIsLectureModalOpen] = useState(false)
   const [editingLecture, setEditingLecture] = useState<Lecture | null>(null)
+  const [isQuizModalOpen, setIsQuizModalOpen] = useState(false)
   const [selectedSectionId, setSelectedSectionId] = useState<string>('')
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
-    type: 'section' | 'lecture'
+    type: 'section' | 'lecture' | 'quiz'
     id: string | null
     title: string | null
   }>({
@@ -87,6 +91,20 @@ export default function CourseDetailPage() {
           } catch (lectureError) {
             console.error(`Error loading lectures for section ${section.id}:`, lectureError)
             lecturesMap[section.id] = []
+          }
+          
+          try {
+            const quizzesData = await getAllQuizzes(section.id)
+            setQuizzes((prev) => ({
+              ...prev,
+              [section.id]: quizzesData,
+            }))
+          } catch (quizError) {
+            console.error(`Error loading quizzes for section ${section.id}:`, quizError)
+            setQuizzes((prev) => ({
+              ...prev,
+              [section.id]: [],
+            }))
           }
         }
         
@@ -241,7 +259,7 @@ export default function CourseDetailPage() {
           await deleteSection(confirmModal.id)
           showToast('Section deleted successfully!', 'success')
           setSections((prev) => prev.filter((s) => s.id !== confirmModal.id))
-        } else {
+        } else if (confirmModal.type === 'lecture') {
           await deleteLecture(confirmModal.id)
           showToast('Lecture deleted successfully!', 'success')
           // Remove from lectures state
@@ -251,6 +269,17 @@ export default function CourseDetailPage() {
               newLectures[sectionId] = newLectures[sectionId].filter((l) => l.id !== confirmModal.id)
             })
             return newLectures
+          })
+        } else if (confirmModal.type === 'quiz') {
+          await deleteQuiz(confirmModal.id)
+          showToast('Quiz deleted successfully!', 'success')
+          // Remove from quizzes state
+          setQuizzes((prev) => {
+            const newQuizzes = { ...prev }
+            Object.keys(newQuizzes).forEach((sectionId) => {
+              newQuizzes[sectionId] = newQuizzes[sectionId].filter((q) => q.id !== confirmModal.id)
+            })
+            return newQuizzes
           })
         }
         setConfirmModal({ isOpen: false, type: 'section', id: null, title: null })
@@ -323,6 +352,43 @@ export default function CourseDetailPage() {
       type: 'lecture',
       id: lecture.id,
       title: lecture.title,
+    })
+  }
+
+  const handleAddQuiz = (sectionId: string) => {
+    setSelectedSectionId(sectionId)
+    setIsQuizModalOpen(true)
+  }
+
+  const handleSaveQuiz = async (quizData: { questions: QuizQuestion[] }) => {
+    try {
+      const newQuiz = await createQuiz({
+        sectionId: selectedSectionId,
+        questions: quizData.questions,
+      })
+      showToast('Quiz created successfully!', 'success')
+      setQuizzes((prev) => {
+        const sectionQuizzes = prev[selectedSectionId] || []
+        return {
+          ...prev,
+          [selectedSectionId]: [...sectionQuizzes, newQuiz],
+        }
+      })
+      setIsQuizModalOpen(false)
+      setSelectedSectionId('')
+      await loadCourseData()
+    } catch (error: any) {
+      console.error('Error saving quiz:', error)
+      showToast(error?.message || 'Error saving quiz', 'error')
+    }
+  }
+
+  const handleDeleteQuiz = (quiz: Quiz) => {
+    setConfirmModal({
+      isOpen: true,
+      type: 'quiz',
+      id: quiz.id,
+      title: `Quiz (${quiz.questions.length} sual)`,
     })
   }
 
@@ -468,7 +534,7 @@ export default function CourseDetailPage() {
                             <div className="text-xs text-gray-500 mb-1">SECTION</div>
                             <h3 className="text-2xl font-bold text-gray-900">{section.title}</h3>
                             <p className="text-sm text-gray-600 mt-1">
-                              {sectionLectures.length} lessons • {formatDuration(totalDuration)}
+                              {sectionLectures.length} lessons • {(quizzes[section.id] || []).length} quiz • {formatDuration(totalDuration)}
                             </p>
                           </div>
                         </div>
@@ -479,6 +545,13 @@ export default function CourseDetailPage() {
                           >
                             <Plus className="w-4 h-4" />
                             Add Lecture
+                          </button>
+                          <button
+                            onClick={() => handleAddQuiz(section.id)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+                          >
+                            <FileQuestion className="w-4 h-4" />
+                            Add Quiz
                           </button>
                           <button
                             onClick={() => handleEditSection(section)}
@@ -498,21 +571,31 @@ export default function CourseDetailPage() {
                       </div>
                     </div>
 
-                    {/* Section Lectures */}
+                    {/* Section Content (Lectures and Quizzes) */}
                     {isExpanded && (
                       <div className="p-6 space-y-3">
-                        {sectionLectures.length === 0 ? (
+                        {/* Lectures */}
+                        {sectionLectures.length === 0 && (quizzes[section.id] || []).length === 0 ? (
                           <div className="text-center py-8 text-gray-500">
-                            <p>No lectures in this section</p>
+                            <p>No content in this section</p>
+                            <div className="flex gap-2 justify-center mt-4">
                             <button
                               onClick={() => handleAddLecture(section.id)}
-                              className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+                                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors"
                             >
                               Add First Lecture
                             </button>
+                              <button
+                                onClick={() => handleAddQuiz(section.id)}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                              >
+                                Add First Quiz
+                              </button>
+                            </div>
                           </div>
                         ) : (
-                          sectionLectures.map((lecture) => (
+                          <>
+                            {sectionLectures.map((lecture) => (
                             <div
                               key={lecture.id}
                               onClick={() => handleLectureClick(lecture)}
@@ -574,7 +657,48 @@ export default function CourseDetailPage() {
                                 </button>
                               </div>
                             </div>
-                          ))
+                          ))}
+                          
+                          {/* Quizzes */}
+                          {(quizzes[section.id] || []).map((quiz) => (
+                            <div
+                              key={quiz.id}
+                              className="flex items-center gap-4 p-4 bg-white rounded-xl border-2 border-blue-200 hover:border-blue-300 hover:shadow-md transition-colors"
+                            >
+                              <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+                                <FileQuestion className="w-6 h-6 text-blue-600" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="font-semibold text-gray-900">Quiz</div>
+                                <div className="text-sm text-gray-600 mt-1">
+                                  {quiz.questions.length} sual
+                                </div>
+                                {quiz.questions[0]?.category && (
+                                  <div className="mt-1">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                                      {quiz.questions[0].category}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                                  Quiz
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteQuiz(quiz)
+                                  }}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          </>
                         )}
                       </div>
                     )}
@@ -741,10 +865,24 @@ export default function CourseDetailPage() {
         />
       )}
 
+      {/* Quiz Modal */}
+      {isQuizModalOpen && selectedSectionId && (
+        <QuizModal
+          isOpen={isQuizModalOpen}
+          sectionId={selectedSectionId}
+          sectionTitle={sections.find(s => s.id === selectedSectionId)?.title || 'Section'}
+          onSave={handleSaveQuiz}
+          onClose={() => {
+            setIsQuizModalOpen(false)
+            setSelectedSectionId('')
+          }}
+        />
+      )}
+
       {/* Confirm Modal */}
       <ConfirmModal
         isOpen={confirmModal.isOpen}
-        title={`Delete ${confirmModal.type === 'section' ? 'Section' : 'Lecture'}`}
+        title={`Delete ${confirmModal.type === 'section' ? 'Section' : confirmModal.type === 'lecture' ? 'Lecture' : 'Quiz'}`}
         message={`Are you sure you want to delete "${confirmModal.title}"? This action cannot be undone.`}
         confirmText="Delete"
         cancelText="Cancel"

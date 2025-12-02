@@ -14,7 +14,13 @@ export async function POST(request: NextRequest) {
     // Note: Title and Description are NOT in Swagger, so we don't send them
     
     const categoryId = incomingFormData.get('CategoryId')
-    if (categoryId) formData.append('CategoryId', String(categoryId))
+    if (!categoryId || String(categoryId).trim() === '') {
+      return NextResponse.json(
+        { error: 'CategoryId is required. Please select a category.' },
+        { status: 400 }
+      )
+    }
+    formData.append('CategoryId', String(categoryId))
     
     // Level (not LevelId)
     const level = incomingFormData.get('Level') || incomingFormData.get('LevelId')
@@ -28,7 +34,13 @@ export async function POST(request: NextRequest) {
     
     // InstructorId (single, not TeacherIds array)
     const instructorId = incomingFormData.get('InstructorId') || incomingFormData.getAll('TeacherIds')[0]
-    if (instructorId) formData.append('InstructorId', String(instructorId))
+    if (!instructorId || String(instructorId).trim() === '') {
+      return NextResponse.json(
+        { error: 'InstructorId is required. Please select at least one teacher.' },
+        { status: 400 }
+      )
+    }
+    formData.append('InstructorId', String(instructorId))
     
     // Thumbnail (not Image)
     const thumbnail = incomingFormData.get('Thumbnail') || incomingFormData.get('Image')

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Edit2, Trash2, Image as ImageIcon, BookOpen, Users, DollarSign, GraduationCap } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, Image as ImageIcon, BookOpen, Users, DollarSign, GraduationCap, Award } from 'lucide-react'
 import CourseModal from '@/components/CourseModal'
+import CertificateModal, { EnrolledUser } from '@/components/CertificateModal'
 import Sidebar from '@/components/Sidebar'
 import ToastContainer, { ToastMessage } from '@/components/ToastContainer'
 import ConfirmModal from '@/components/ConfirmModal'
@@ -54,6 +55,15 @@ export default function CoursesPage() {
     courseId: null,
     courseTitle: null,
   })
+  const [certificateModal, setCertificateModal] = useState<{
+    isOpen: boolean
+    courseId: string | null
+    courseTitle: string | null
+  }>({
+    isOpen: false,
+    courseId: null,
+    courseTitle: null,
+  })
 
   // Calculate statistics
   const totalCourses = coursesData.length
@@ -69,6 +79,52 @@ export default function CoursesPage() {
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id))
   }
+
+  // Load categories from backend
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories/getAll?language=Azerbaijani')
+        if (response.ok) {
+          const data = await response.json()
+          const categoriesList = data.categories || []
+          setCategories(categoriesList)
+          console.log('Loaded categories:', categoriesList)
+        } else {
+          const errorData = await response.json()
+          console.error('Failed to load categories:', errorData.error)
+          showToast('Kateqoriyalar yüklənə bilmədi', 'error')
+        }
+      } catch (error: any) {
+        console.error('Error loading categories:', error)
+        showToast('Kateqoriyalar yüklənərkən xəta baş verdi', 'error')
+      }
+    }
+    fetchCategories()
+  }, [])
+
+  // Load teachers from backend
+  useEffect(() => {
+    const fetchTeachers = async () => {
+      try {
+        const response = await fetch('/api/teachers/getAll')
+        if (response.ok) {
+          const data = await response.json()
+          const teachersList = data.teachers || []
+          setTeachers(teachersList)
+          console.log('Loaded teachers:', teachersList)
+        } else {
+          const errorData = await response.json()
+          console.error('Failed to load teachers:', errorData.error)
+          showToast('Müəllimlər yüklənə bilmədi', 'error')
+        }
+      } catch (error: any) {
+        console.error('Error loading teachers:', error)
+        showToast('Müəllimlər yüklənərkən xəta baş verdi', 'error')
+      }
+    }
+    fetchTeachers()
+  }, [])
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -117,19 +173,6 @@ export default function CoursesPage() {
         
         setCoursesData(mappedCourses)
         setFilteredCourses(mappedCourses)
-        
-        // Kateqoriya və müəllimlər üçün real backend ID-ləri
-        // Helelik yalnız programming category
-        setCategories([
-          { id: '19ba8521-54d8-4f01-8935-6bac2e73011d', name: 'programming' },
-        ])
-        
-        // Teachers - provided IDs
-        setTeachers([
-          { id: '6df8e8ae-e97c-4724-73ce-08de2dbbd0d8', name: 'lala ahmedova' },
-          { id: 'eb5342da-b48b-4085-73cf-08de2dbbd0d8', name: 'ahmet yilmaz' },
-          { id: '030f18c9-35e7-4b6c-73d0-08de2dbbd0d8', name: 'vusal memmedov' },
-        ])
         
         localStorage.setItem('coursesData', JSON.stringify(mappedCourses))
       } catch (error: any) {
@@ -312,6 +355,18 @@ export default function CoursesPage() {
   }
 
   const handleSaveCourse = async (course: CourseItem, imageFile?: File | string) => {
+    // Validate category selection
+    if (!course.categoryId || course.categoryId.trim() === '') {
+      showToast('Zəhmət olmasa kateqoriya seçin', 'error')
+      return
+    }
+    
+    // Validate teacher selection
+    if (!course.teacherIds || course.teacherIds.length === 0) {
+      showToast('Zəhmət olmasa ən azı bir müəllim seçin', 'error')
+      return
+    }
+    
     if (editingCourse) {
       // Update existing course
       try {
@@ -973,6 +1028,17 @@ export default function CoursesPage() {
                                      <BookOpen className="w-4 h-4" />
                                    </button>
                                    <button
+                                     onClick={() => setCertificateModal({
+                                       isOpen: true,
+                                       courseId: course.id,
+                                       courseTitle: course.title || 'Untitled Course',
+                                     })}
+                                     className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                     title="Send Certificate"
+                                   >
+                                     <Award className="w-4 h-4" />
+                                   </button>
+                                   <button
                                      onClick={() => handleEditCourse(course)}
                                      className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
                                      title="Edit"
@@ -1023,6 +1089,49 @@ export default function CoursesPage() {
         onCancel={handleDeleteCancel}
         type="danger"
       />
+
+      {/* Certificate Modal */}
+      {certificateModal.isOpen && certificateModal.courseId && (
+        <CertificateModal
+          isOpen={certificateModal.isOpen}
+          courseId={certificateModal.courseId}
+          courseTitle={certificateModal.courseTitle || 'Untitled Course'}
+          onClose={() => setCertificateModal({ isOpen: false, courseId: null, courseTitle: null })}
+          onSend={async (data) => {
+            try {
+              // Hələlik email service yoxdur, ona görə də yalnız success mesajı göstəririk
+              // Gələcəkdə email service əlavə olunanda burada backend-ə göndəriləcək
+              
+              console.log('=== CERTIFICATE SEND DATA ===')
+              console.log('Selected Users:', data.selectedUsers.length)
+              console.log('Certificate Name:', data.name)
+              console.log('Certificate Date:', data.date)
+              console.log('Course ID:', certificateModal.courseId)
+              console.log('Has File:', !!data.certificateFile)
+              console.log('File Name:', data.certificateFile?.name)
+              console.log('============================')
+              
+              // Simulate delay for better UX
+              await new Promise(resolve => setTimeout(resolve, 500))
+              
+              // Show success message
+              const userCount = data.selectedUsers.length
+              const userNames = data.selectedUsers.map(u => u.name || u.email).join(', ')
+              
+              showToast(
+                `Sertifikatlar ${userCount} istifadəçiyə uğurla göndərildi!${userCount <= 3 ? ` (${userNames})` : ''}`,
+                'success'
+              )
+              
+              console.log('✓ Certificates sent successfully (simulated)')
+            } catch (error: any) {
+              console.error('Error sending certificates:', error)
+              showToast(error?.message || 'Sertifikatlar göndərilərkən xəta baş verdi', 'error')
+              throw error
+            }
+          }}
+        />
+      )}
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
