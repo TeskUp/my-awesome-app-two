@@ -131,11 +131,11 @@ export default function NewsModal({
     }
     
     // Ensure category is set, default to ilk kateqoriya (məs: psychology) əgər boşdursa
-    const categoryToUse = formData.category?.trim() || categories[0] || ''
+    const categoryToUse = formData.category?.trim() || categories[0]?.name || ''
     
     // Update formData with normalized category
     if (!formData.category || formData.category.trim() === '') {
-      setFormData({ ...formData, category: categories[0] || 'psychology' })
+      setFormData({ ...formData, category: categories[0]?.name || 'psychology' })
     }
     
     // Validate that image is provided

@@ -62,7 +62,7 @@ export default function CertificateModal({
         const data = await response.json()
         setUsers(data.users || [])
         // Auto-select users with 100% progress
-        const completedUserIds = new Set(
+        const completedUserIds = new Set<string>(
           data.users
             .filter((u: EnrolledUser) => u.progress >= 100)
             .map((u: EnrolledUser) => u.id)
@@ -249,11 +249,13 @@ export default function CertificateModal({
                           checked={displayedUsers.length > 0 && displayedUsers.every(u => selectedUserIds.has(u.id))}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              const allIds = new Set(displayedUsers.map(u => u.id))
-                              setSelectedUserIds(new Set([...selectedUserIds, ...allIds]))
+                              const allIds = new Set<string>(displayedUsers.map(u => u.id))
+                              const newSelection = new Set<string>(selectedUserIds)
+                              allIds.forEach(id => newSelection.add(id))
+                              setSelectedUserIds(newSelection)
                             } else {
-                              const displayedIds = new Set(displayedUsers.map(u => u.id))
-                              const newSelection = new Set(selectedUserIds)
+                              const displayedIds = new Set<string>(displayedUsers.map(u => u.id))
+                              const newSelection = new Set<string>(selectedUserIds)
                               displayedIds.forEach(id => newSelection.delete(id))
                               setSelectedUserIds(newSelection)
                             }
