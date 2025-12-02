@@ -135,8 +135,11 @@ export async function adminLogin(): Promise<string> {
     }
 
     console.log('Admin login successful, token cached')
-    console.log('Token preview:', cachedToken.substring(0, 50) + '...')
-    return cachedToken
+    if (cachedToken) {
+      console.log('Token preview:', cachedToken.substring(0, 50) + '...')
+      return cachedToken
+    }
+    throw new Error('Token was not cached after login')
   } catch (error) {
     console.error('Error in admin login:', error)
     throw error
