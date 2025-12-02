@@ -21,8 +21,6 @@ export default function CourseModal({
   onClose 
 }: CourseModalProps) {
   // Default IDs - using provided IDs
-  const DEFAULT_CATEGORY_ID = TEST_IDS.CATEGORY_ID_PROGRAMMING || '19ba8521-54d8-4f01-8935-6bac2e73011d' // programming (default)
-  const DEFAULT_TEACHER_ID = TEST_IDS.TEACHER_ID || 'eb5342da-b48b-4085-73cf-08de2dbbd0d8' // ahmet yilmaz (default)
   const DEFAULT_LANGUAGE_ID = TEST_IDS.USED_LANGUAGE_ID_ENGLISH || 'b2c3d4e5-2345-6789-abcd-ef0123456789' // Provided language ID
 
   const [formData, setFormData] = useState({
@@ -100,7 +98,7 @@ export default function CourseModal({
         description: '',
         isFree: true, // Default to free course (matches Swagger example)
         price: '0',
-        categoryId: categories.length > 0 ? categories[0].id : DEFAULT_CATEGORY_ID,
+        categoryId: categories.length > 0 ? categories[0].id : '', // Use first available category from backend
         levelId: 'Beginner',
         teacherIds: teachers.length > 0 ? [teachers[0].id] : [], // Default to first teacher
         usedLanguageId: DEFAULT_LANGUAGE_ID,

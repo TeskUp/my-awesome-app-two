@@ -6,7 +6,7 @@ import NewsModal from '@/components/NewsModal'
 import Sidebar from '@/components/Sidebar'
 import ToastContainer, { ToastMessage } from '@/components/ToastContainer'
 import ConfirmModal from '@/components/ConfirmModal'
-import { getAllNews, getNewsDetail, createNews, updateNews, deleteNews, addNewsDetail, getCategoryId, getDefaultLanguageIdSync, NewsResponse } from '@/services/newsApi'
+import { getAllNews, getNewsDetail, createNews, updateNews, deleteNews, addNewsDetail, getDefaultLanguageIdSync, NewsResponse } from '@/services/newsApi'
 
 export interface NewsItem {
   id: string
@@ -23,17 +23,13 @@ export interface NewsItem {
   comments: number
 }
 
-// News üçün istifadə edəcəyimiz kateqoriyalar
-// Bu adlar dropdown-da görünəcək və backend ID-lərinə xəritələnəcək
-const BASE_NEWS_CATEGORIES = ['psychology', 'programming', 'proqramlasdirma']
-
 export default function AdminPanel() {
   const [newsData, setNewsData] = useState<NewsItem[]>([])
   const [filteredNews, setFilteredNews] = useState<NewsItem[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingNews, setEditingNews] = useState<NewsItem | null>(null)
-  const [availableCategories, setAvailableCategories] = useState<string[]>(BASE_NEWS_CATEGORIES)
+  const [availableCategories, setAvailableCategories] = useState<Array<{ id: string; name: string }>>([])
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
@@ -63,6 +59,29 @@ export default function AdminPanel() {
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id))
   }
+
+  // Load categories from backend
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories/getAll?language=Azerbaijani')
+        if (response.ok) {
+          const data = await response.json()
+          const categoriesList = data.categories || []
+          setAvailableCategories(categoriesList)
+          console.log('Loaded categories for news:', categoriesList)
+        } else {
+          const errorData = await response.json()
+          console.error('Failed to load categories:', errorData.error)
+          showToast('Kateqoriyalar yüklənə bilmədi', 'error')
+        }
+      } catch (error: any) {
+        console.error('Error loading categories:', error)
+        showToast('Kateqoriyalar yüklənərkən xəta baş verdi', 'error')
+      }
+    }
+    fetchCategories()
+  }, [])
 
   useEffect(() => {
     const fetchNews = async () => {
@@ -220,12 +239,7 @@ export default function AdminPanel() {
         setNewsData(sortedNews)
         setFilteredNews(sortedNews)
         
-        // Extract unique categories from API response (REAL categories from backend)
-        const categories = Array.from(new Set(mappedNews.map(item => item.category?.trim()).filter(Boolean))) as string[]
-        console.log('Available categories from API:', categories)
-        // Əsas olaraq öz category-lərimizi istifadə edirik
-        const allCategories = BASE_NEWS_CATEGORIES
-        setAvailableCategories(allCategories)
+        // Categories are already loaded from backend in separate useEffect
         
         // Also save to localStorage as backup
         localStorage.setItem('newsData', JSON.stringify(mappedNews))
@@ -262,9 +276,7 @@ export default function AdminPanel() {
               comments: item.comments || 0,
             }))
             
-            // Kateqoriyalar üçün həmişə öz baza siyahımızı istifadə edirik
-            const allCategories = BASE_NEWS_CATEGORIES
-            setAvailableCategories(allCategories)
+            // Categories are already loaded from backend in separate useEffect
             
             setNewsData(mappedLocalNews)
             setFilteredNews(mappedLocalNews)
@@ -551,9 +563,7 @@ export default function AdminPanel() {
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           })
           
-          // Kateqoriyalar üçün həmişə öz baza siyahımızı istifadə edirik
-          const allCategories = BASE_NEWS_CATEGORIES
-          setAvailableCategories(allCategories)
+          // Categories are already loaded from backend in separate useEffect
           
           setNewsData(sortedNews)
           setFilteredNews(sortedNews)
@@ -612,9 +622,16 @@ export default function AdminPanel() {
           // Continue with update attempt - GetDetail might fail but Update might still work
         }
         
-        // Ensure category is set, default to 'psychology' if empty
-        const categoryToUse = news.category?.trim() || 'psychology'
-        const categoryId = getCategoryId(categoryToUse)
+        // Ensure category is set, use first available category if empty
+        const categoryToUse = news.category?.trim() || (availableCategories.length > 0 ? availableCategories[0].name : '')
+        // Find category ID from availableCategories
+        const selectedCategory = availableCategories.find(cat => cat.name === categoryToUse)
+        const categoryId = selectedCategory?.id || (availableCategories.length > 0 ? availableCategories[0].id : '')
+        
+        if (!categoryId || categoryId.trim() === '') {
+          showToast('Zəhmət olmasa kateqoriya seçin', 'error')
+          return
+        }
         const languageId = getDefaultLanguageIdSync()
         
         console.log('=== UPDATE NEWS CATEGORY ===')
@@ -835,9 +852,7 @@ export default function AdminPanel() {
         
         const mappedNews = await Promise.all(mappedNewsPromises)
         
-        // Kateqoriyalar üçün baza siyahımızdan istifadə edirik
-        const allCategories = BASE_NEWS_CATEGORIES
-        setAvailableCategories(allCategories)
+        // Categories are already loaded from backend in separate useEffect
         
         setNewsData(mappedNews)
         setFilteredNews(mappedNews)
@@ -964,9 +979,16 @@ export default function AdminPanel() {
     } else {
       // Create new news via API
       try {
-        // Ensure category is set, default to 'psychology' if empty
-        const categoryToUse = news.category?.trim() || 'psychology'
-        const categoryId = getCategoryId(categoryToUse)
+        // Ensure category is set, use first available category if empty
+        const categoryToUse = news.category?.trim() || (availableCategories.length > 0 ? availableCategories[0].name : '')
+        // Find category ID from availableCategories
+        const selectedCategory = availableCategories.find(cat => cat.name === categoryToUse)
+        const categoryId = selectedCategory?.id || (availableCategories.length > 0 ? availableCategories[0].id : '')
+        
+        if (!categoryId || categoryId.trim() === '') {
+          showToast('Zəhmət olmasa kateqoriya seçin', 'error')
+          return
+        }
         // LanguageId should be language name (e.g., "English") for AddNewsDetail
         const languageId = 'English' // Default to English
         
@@ -1399,9 +1421,7 @@ export default function AdminPanel() {
         console.log('First news item ID:', sortedNews[0]?.id)
         console.log('Created news ID:', createdNewsId)
         
-        // Kateqoriyalar üçün baza siyahımızdan istifadə edirik
-        const allCategories = BASE_NEWS_CATEGORIES
-        setAvailableCategories(allCategories)
+        // Categories are already loaded from backend in separate useEffect
         
         setNewsData(sortedNews)
         setFilteredNews(sortedNews)

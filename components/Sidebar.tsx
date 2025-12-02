@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Newspaper, BookOpen } from 'lucide-react'
+import { Newspaper, BookOpen, BarChart3 } from 'lucide-react'
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -34,11 +34,20 @@ export default function Sidebar() {
           <Link
             href="/courses"
             className={`flex items-center gap-3 px-4 py-3 rounded-xl text-white font-medium transition-all hover:bg-white/25 hover:scale-105 ${
-              pathname === '/courses' ? 'bg-white/20' : 'bg-white/10'
+              pathname === '/courses' || pathname?.startsWith('/courses/') ? 'bg-white/20' : 'bg-white/10'
             }`}
           >
             <BookOpen className="w-5 h-5 text-white" />
             Course Management
+          </Link>
+          <Link
+            href="/statistics"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-white font-medium transition-all hover:bg-white/25 hover:scale-105 ${
+              pathname === '/statistics' ? 'bg-white/20' : 'bg-white/10'
+            }`}
+          >
+            <BarChart3 className="w-5 h-5 text-white" />
+            Statistika
           </Link>
         </nav>
 
