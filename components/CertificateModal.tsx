@@ -259,15 +259,8 @@ export default function CertificateModal({
     setSending(true)
     try {
       // Use Next.js API route to proxy requests to backend
-      // Backend requires: Name, Date, File, and Email
+      // According to Swagger test: only File and Email are required
       const results: Array<{ status: 'fulfilled' | 'rejected', value?: any, reason?: any }> = []
-      
-      // Get today's date in DD.MM.YYYY format
-      const today = new Date()
-      const day = String(today.getDate()).padStart(2, '0')
-      const month = String(today.getMonth() + 1).padStart(2, '0')
-      const year = today.getFullYear()
-      const formattedDate = `${day}.${month}.${year}`
       
       console.log('=== SENDING CERTIFICATES VIA API ROUTE ===')
       console.log('Users:', completedUsers.length)
@@ -308,11 +301,9 @@ export default function CertificateModal({
           console.log(`  ✓ PDF generated for ${userName}`)
 
           // Step 2: Send certificate via Next.js API route (which proxies to backend)
-          // Backend requires: Name, Date, File, and Email
+          // According to Swagger test: only File and Email are required
           console.log(`  → Sending email to ${user.email} via API route...`)
           const formData = new FormData()
-          formData.append('Name', userName) // Required by backend
-          formData.append('Date', formattedDate) // Required by backend
           formData.append('File', pdfFile)
           formData.append('Email', user.email)
 

@@ -11,28 +11,8 @@ export async function POST(request: NextRequest) {
     const incomingFormData = await request.formData()
 
     // Prepare FormData for backend
-    // Backend requires: Name, Date, File, and Email
+    // According to Swagger test: only File and Email are required
     const formData = new FormData()
-
-    // Handle Name - required by backend
-    const name = incomingFormData.get('Name')
-    if (!name || String(name).trim() === '') {
-      return NextResponse.json(
-        { error: 'Name is required' },
-        { status: 400 }
-      )
-    }
-    formData.append('Name', String(name))
-
-    // Handle Date - required by backend
-    const date = incomingFormData.get('Date')
-    if (!date || String(date).trim() === '') {
-      return NextResponse.json(
-        { error: 'Date is required' },
-        { status: 400 }
-      )
-    }
-    formData.append('Date', String(date))
 
     // Handle File - In Node.js, FormData files are Blob-like objects
    // Handle File
@@ -87,8 +67,6 @@ formData.append('File', file)
     
     console.log('=== SENDING FORM SUBMIT REQUEST ===')
     console.log('Endpoint URL:', endpointUrl)
-    console.log('Name:', formData.get('Name'))
-    console.log('Date:', formData.get('Date'))
     console.log('Email:', formData.get('Email'))
     console.log('Has File:', formData.has('File'))
     const fileForLog = formData.get('File')
