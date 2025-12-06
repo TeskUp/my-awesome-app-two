@@ -94,6 +94,7 @@ export default function CourseDetailPage() {
           { id: 'test-elvin', email: 'test2@example.com', name: 'Elvin Mammadov', progress: 100 },
           { id: 'test-vusal', email: 'vusalguluyev153@gmail.com', name: 'Vusal', progress: 100 },
           { id: 'test-nezrin', email: 'nbayramli2007@gmail.com', name: 'Nazrin Bayramli', progress: 100 },
+          { id: 'test-enel', email: 'yusiflienel@gmail.com', name: 'Enel Yusifli', progress: 100 },
         ]
         
         const existingEmails = new Set(completedUsers.map((u: any) => u.email))
@@ -111,6 +112,7 @@ export default function CourseDetailPage() {
         { id: 'test-elvin', email: 'test2@example.com', name: 'Elvin Mammadov', progress: 100 },
         { id: 'test-vusal', email: 'vusalguluyev153@gmail.com', name: 'Vusal', progress: 100 },
         { id: 'test-nezrin', email: 'nbayramli2007@gmail.com', name: 'Nəzrin Bayramlı', progress: 100 },
+        { id: 'test-enel', email: 'yusiflienel@gmail.com', name: 'Enel Yusifli', progress: 100 },
       ]
       setEnrolledUsers(testUsers)
     }
