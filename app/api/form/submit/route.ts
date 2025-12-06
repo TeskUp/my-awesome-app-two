@@ -35,14 +35,19 @@ export async function POST(request: NextRequest) {
     formData.append('Date', String(date))
 
     // Handle File - In Node.js, FormData files are Blob-like objects
-    const file = incomingFormData.get('File')
-    if (!file) {
-      return NextResponse.json(
-        { error: 'Certificate PDF file is required' },
-        { status: 400 }
-      )
-    }
-    
+   // Handle File
+  const file = incomingFormData.get('File')
+  
+  if (!file || !(file instanceof File)) {
+    return NextResponse.json(
+      { error: 'Certificate PDF file is required' },
+      { status: 400 }
+    )
+  }
+
+// We know it's a File now
+formData.append('File', file)
+
     // Convert file to proper format for backend
     // In Node.js, we need to handle the file correctly
     let fileToSend: Blob | File
