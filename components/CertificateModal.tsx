@@ -337,6 +337,11 @@ export default function CertificateModal({
             const result = await emailResponse.json()
             console.log(`  ✓ Certificate sent to ${user.email}:`, result.message || result)
             results.push({ status: 'fulfilled', value: { user, success: true } })
+            
+            // Small delay between requests to avoid overwhelming the backend
+            if (i < completedUsers.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 500)) // 500ms delay
+            }
           } catch (error: any) {
             clearTimeout(timeoutId)
             if (error.name === 'AbortError') {
