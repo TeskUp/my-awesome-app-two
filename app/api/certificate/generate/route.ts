@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Read template PDF from root directory
-    const templatePath = path.join(process.cwd(), 'TeskUp Certificate.pdf')
+    const templatePath = path.join(process.cwd(), 'stranger certificate.pdf')
     
     if (!fs.existsSync(templatePath)) {
       return NextResponse.json(
