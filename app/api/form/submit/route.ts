@@ -14,43 +14,32 @@ export async function POST(request: NextRequest) {
     // According to Swagger test: only File and Email are required
     const formData = new FormData()
 
-    // Handle File - In Node.js, FormData files are Blob-like objects
-   // Handle File
-  const file = incomingFormData.get('File')
-  
-  if (!file || !(file instanceof File)) {
-    return NextResponse.json(
-      { error: 'Certificate PDF file is required' },
-      { status: 400 }
-    )
-  }
-
-// We know it's a File now
-formData.append('File', file)
-
-    // Convert file to proper format for backend
-    // In Node.js, we need to handle the file correctly
-    let fileToSend: Blob | File
-    let fileName = 'certificate.pdf'
-    
-    if (file instanceof File) {
-      fileToSend = file
-      fileName = file.name
-    } else if (file instanceof Blob) {
-      fileToSend = file
-    } else {
-      // Convert to Blob if it's a different type (e.g., from FormData in Node.js)
-      try {
-        const arrayBuffer = await (file as any).arrayBuffer()
-        fileToSend = new Blob([arrayBuffer], { type: 'application/pdf' })
-      } catch (e) {
-        // If arrayBuffer() fails, try to use the file directly
-        fileToSend = file as any
-      }
+    // Handle File - Swagger test shows only File and Email are required
+    const file = incomingFormData.get('File')
+    if (!file) {
+      return NextResponse.json(
+        { error: 'Certificate PDF file is required' },
+        { status: 400 }
+      )
     }
     
-    // Append file to FormData - backend expects 'File' field name
-    formData.append('File', fileToSend, fileName)
+    // Append file directly to FormData - backend expects 'File' field name
+    // In Node.js, file from FormData might be Blob or File-like object
+    if (file instanceof File) {
+      formData.append('File', file)
+    } else if (file instanceof Blob) {
+      formData.append('File', file, 'certificate.pdf')
+    } else {
+      // For Node.js FormData, convert to Blob if needed
+      try {
+        const arrayBuffer = await (file as any).arrayBuffer()
+        const fileBlob = new Blob([arrayBuffer], { type: 'application/pdf' })
+        formData.append('File', fileBlob, 'certificate.pdf')
+      } catch (e) {
+        // If conversion fails, try to append directly
+        formData.append('File', file as any, 'certificate.pdf')
+      }
+    }
 
     // Handle Email
     const email = incomingFormData.get('Email')
