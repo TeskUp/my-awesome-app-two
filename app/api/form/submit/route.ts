@@ -23,19 +23,29 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Convert file to Buffer/Blob for proper handling
-    let fileBlob: Blob
-    if (file instanceof Blob || file instanceof File) {
-      fileBlob = file
+    // Convert file to proper format for backend
+    // In Node.js, we need to handle the file correctly
+    let fileToSend: Blob | File
+    let fileName = 'certificate.pdf'
+    
+    if (file instanceof File) {
+      fileToSend = file
+      fileName = file.name
+    } else if (file instanceof Blob) {
+      fileToSend = file
     } else {
-      // Convert to Blob if it's a different type
-      const arrayBuffer = await (file as any).arrayBuffer()
-      fileBlob = new Blob([arrayBuffer], { type: 'application/pdf' })
+      // Convert to Blob if it's a different type (e.g., from FormData in Node.js)
+      try {
+        const arrayBuffer = await (file as any).arrayBuffer()
+        fileToSend = new Blob([arrayBuffer], { type: 'application/pdf' })
+      } catch (e) {
+        // If arrayBuffer() fails, try to use the file directly
+        fileToSend = file as any
+      }
     }
     
-    // Get filename if available
-    const fileName = file instanceof File ? file.name : 'certificate.pdf'
-    formData.append('File', fileBlob, fileName)
+    // Append file to FormData - backend expects 'File' field name
+    formData.append('File', fileToSend, fileName)
 
     // Handle Email
     const email = incomingFormData.get('Email')
@@ -120,6 +130,7 @@ export async function POST(request: NextRequest) {
       console.log('Status:', response.status)
       console.log('Status Text:', response.statusText)
       console.log('Error Text:', errorText)
+      console.log('Error Text Length:', errorText.length)
       console.log('======================')
       
       // If 404, provide more specific error message
@@ -128,19 +139,26 @@ export async function POST(request: NextRequest) {
         console.error('404 Error - Endpoint not found. Check Swagger for correct endpoint.')
       }
       
+      // Try to parse error as JSON
       try {
         const errorData = JSON.parse(errorText)
         if (errorData.error || errorData.message) {
           errorMessage = errorData.error || errorData.message
+        } else if (errorData.title || errorData.detail) {
+          errorMessage = errorData.title || errorData.detail
         }
       } catch {
-        if (errorText) {
-          errorMessage = `${errorMessage} - ${errorText}`
+        // If not JSON, use the raw error text
+        if (errorText && errorText.trim()) {
+          errorMessage = errorText.trim()
         }
       }
       
+      // Always include the full error message for debugging
+      console.error('Final Error Message:', errorMessage)
+      
       return NextResponse.json(
-        { error: errorMessage },
+        { error: errorMessage, details: errorText },
         { status: response.status }
       )
     }
