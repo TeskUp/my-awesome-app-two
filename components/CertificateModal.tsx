@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Send, Award, CheckCircle2, FileText, User, Calendar } from 'lucide-react'
+import { X, Send, Award, CheckCircle2, User, Download } from 'lucide-react'
 
 export interface EnrolledUser {
   id: string
@@ -20,11 +20,8 @@ interface CertificateModalProps {
   courseId: string
   courseTitle: string
   onClose: () => void
-  onSend: (data: {
-    selectedUsers: EnrolledUser[]
-    certificateFile: File | null
-    name: string
-    date: string
+  onSend?: (data: {
+    users: EnrolledUser[]
   }) => Promise<void>
 }
 
@@ -37,21 +34,14 @@ export default function CertificateModal({
 }: CertificateModalProps) {
   const [users, setUsers] = useState<EnrolledUser[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
-  const [certificateFile, setCertificateFile] = useState<File | null>(null)
   const [sending, setSending] = useState(false)
-  const [filterCompleted, setFilterCompleted] = useState(true)
-  const [name, setName] = useState('')
-  const [date, setDate] = useState('')
+  const [downloadingUser, setDownloadingUser] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen && courseId) {
       loadEnrolledUsers()
-      // Set default date to today
-      const today = new Date().toISOString().split('T')[0]
-      setDate(today)
     }
-  }, [isOpen, courseId, courseTitle])
+  }, [isOpen, courseId])
 
 
   const loadEnrolledUsers = async () => {
@@ -60,103 +50,349 @@ export default function CertificateModal({
       const response = await fetch(`/api/courses/${courseId}/enrolled-users`)
       if (response.ok) {
         const data = await response.json()
-        setUsers(data.users || [])
-        // Auto-select users with 100% progress
-        const completedUserIds = new Set<string>(
-          data.users
-            .filter((u: EnrolledUser) => u.progress >= 100)
-            .map((u: EnrolledUser) => u.id)
-        )
-        setSelectedUserIds(completedUserIds)
+        // Filter only users with 100% progress
+        // TEST MODE: For testing, also include test users even if progress < 100
+        const allUsers = data.users || []
+        const completedUsers = allUsers.filter((u: EnrolledUser) => {
+        // Test users - force 100% for testing
+        const testEmails = ['rauf123@gmail.com', 'test1@example.com', 'test2@example.com', 'vusalguluyev153@gmail.com', 'nbayramli2007@gmail.com']
+          if (testEmails.includes(u.email)) {
+            u.progress = 100
+            u.completed = true
+            u.status = 'Completed'
+            return true
+          }
+          return u.progress >= 100
+        })
+        
+        // Add test users if they don't exist
+        const testUsers: EnrolledUser[] = [
+          {
+            id: 'test-user-2',
+            email: 'test1@example.com',
+            name: 'Ruslan Guluyev',
+            progress: 100,
+            completed: true,
+            status: 'Completed',
+          },
+          {
+            id: 'test-user-3',
+            email: 'test2@example.com',
+            name: 'Elvin Mammadov',
+            progress: 100,
+            completed: true,
+            status: 'Completed',
+          },
+          {
+            id: 'test-user-vusal',
+            email: 'vusalguluyev153@gmail.com',
+            name: 'Vusal',
+            progress: 100,
+            completed: true,
+            status: 'Completed',
+          },
+          {
+            id: 'test-user-nezrin',
+            email: 'nbayramli2007@gmail.com',
+            name: 'Nazrin Bayramli',
+            progress: 100,
+            completed: true,
+            status: 'Completed',
+          },
+        ]
+        
+        // Add test users that don't already exist
+        const existingEmails = new Set(completedUsers.map(u => u.email))
+        const newTestUsers = testUsers.filter(tu => !existingEmails.has(tu.email))
+        const finalUsers = [...completedUsers, ...newTestUsers]
+        
+        setUsers(finalUsers)
       } else {
         console.error('Failed to load enrolled users')
-        setUsers([])
+        // Even if API fails, show test users for testing
+        const testUsers: EnrolledUser[] = [
+          {
+            id: 'test-user-rauf',
+            email: 'rauf123@gmail.com',
+            name: 'Rauf Bextiyarli',
+            progress: 100,
+            completed: true,
+            status: 'Completed',
+          },
+          {
+            id: 'test-user-2',
+            email: 'test1@example.com',
+            name: 'Ruslan Guluyev',
+            progress: 100,
+            completed: true,
+            status: 'Completed',
+          },
+          {
+            id: 'test-user-3',
+            email: 'test2@example.com',
+            name: 'Elvin Mammadov',
+            progress: 100,
+            completed: true,
+            status: 'Completed',
+          },
+          {
+            id: 'test-user-vusal',
+            email: 'vusalguluyev153@gmail.com',
+            name: 'Vusal',
+            progress: 100,
+            completed: true,
+            status: 'Completed',
+          },
+          {
+            id: 'test-user-nezrin',
+            email: 'nbayramli2007@gmail.com',
+            name: 'Nazrin Bayramli',
+            progress: 100,
+            completed: true,
+            status: 'Completed',
+          },
+        ]
+        setUsers(testUsers)
       }
     } catch (error) {
       console.error('Error loading enrolled users:', error)
-      setUsers([])
+      // Even if error, show test users for testing
+      const testUsers: EnrolledUser[] = [
+        {
+          id: 'test-user-rauf',
+          email: 'rauf123@gmail.com',
+          name: 'Rauf Bextiyarli',
+          progress: 100,
+          completed: true,
+          status: 'Completed',
+        },
+        {
+          id: 'test-user-2',
+          email: 'test1@example.com',
+          name: 'Ruslan Guluyev',
+          progress: 100,
+          completed: true,
+          status: 'Completed',
+        },
+        {
+          id: 'test-user-3',
+          email: 'test2@example.com',
+          name: 'Elvin Mammadov',
+          progress: 100,
+          completed: true,
+          status: 'Completed',
+        },
+        {
+          id: 'test-user-vusal',
+          email: 'vusalguluyev153@gmail.com',
+          name: 'Vusal',
+          progress: 100,
+          completed: true,
+          status: 'Completed',
+        },
+        {
+          id: 'test-user-nezrin',
+          email: 'nbayramli2007@gmail.com',
+          name: 'Nəzrin Bayramlı',
+          progress: 100,
+          completed: true,
+          status: 'Completed',
+        },
+      ]
+      setUsers(testUsers)
     } finally {
       setLoading(false)
     }
   }
 
-  const toggleUserSelection = (userId: string) => {
-    const newSelection = new Set(selectedUserIds)
-    if (newSelection.has(userId)) {
-      newSelection.delete(userId)
-    } else {
-      newSelection.add(userId)
-    }
-    setSelectedUserIds(newSelection)
-  }
+  const handleDownloadCertificate = async (user: EnrolledUser) => {
+    if (downloadingUser === user.id) return
+    
+    setDownloadingUser(user.id)
+    
+    try {
+      const userName = user.name || user.email.split('@')[0]
+      
+      const response = await fetch('/api/certificate/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userName: userName,
+          courseTitle: courseTitle,
+        }),
+      })
 
-  const selectAllCompleted = () => {
-    const completedIds = new Set(
-      users.filter(u => u.progress >= 100).map(u => u.id)
-    )
-    setSelectedUserIds(completedIds)
-  }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to generate PDF' }))
+        throw new Error(errorData.error || 'Sertifikat yaradıla bilmədi')
+      }
 
-  const selectAll = () => {
-    const allIds = new Set(users.map(u => u.id))
-    setSelectedUserIds(allIds)
-  }
-
-  const deselectAll = () => {
-    setSelectedUserIds(new Set())
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file && file.type === 'application/pdf') {
-      setCertificateFile(file)
-    } else {
-      alert('Yalnız PDF faylı yükləyə bilərsiniz')
+      // Get PDF blob and download
+      const pdfBlob = await response.blob()
+      const url = window.URL.createObjectURL(pdfBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `certificate-${userName.replace(/\s+/g, '-')}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error: any) {
+      console.error('Error downloading certificate:', error)
+      alert(error?.message || 'Sertifikat endirilərkən xəta baş verdi')
+    } finally {
+      setDownloadingUser(null)
     }
   }
 
   const handleSend = async () => {
-    if (selectedUserIds.size === 0) {
-      alert('Zəhmət olmasa ən azı bir istifadəçi seçin')
+    // Filter only users with 100% progress (double check)
+    const completedUsers = users.filter(u => u.progress >= 100)
+    
+    if (completedUsers.length === 0) {
+      alert('Bu kursa 100% tamamlayan istifadəçi yoxdur')
       return
     }
-
-    if (!certificateFile) {
-      alert('Zəhmət olmasa sertifikat PDF faylını yükləyin')
-      return
-    }
-
-    if (!name.trim()) {
-      alert('Zəhmət olmasa adı doldurun')
-      return
-    }
-
-    if (!date.trim()) {
-      alert('Zəhmət olmasa tarixi seçin')
-      return
-    }
-
-    const selectedUsers = users.filter(u => selectedUserIds.has(u.id))
 
     setSending(true)
     try {
-      await onSend({
-        selectedUsers,
-        certificateFile,
-        name: name.trim(),
-        date: date.trim(),
-      })
-      onClose()
+      // LOCALHOST MODE: Send certificates directly from modal using localhost endpoint
+      const LOCALHOST_API = 'https://localhost:7240/api'
+      const results: Array<{ status: 'fulfilled' | 'rejected', value?: any, reason?: any }> = []
+      
+      console.log('=== SENDING CERTIFICATES VIA LOCALHOST ===')
+      console.log('Users:', completedUsers.length)
+      console.log('Endpoint:', `${LOCALHOST_API}/Form/submit`)
+      console.log('==========================================')
+      
+      // Send certificate to each user sequentially
+      for (let i = 0; i < completedUsers.length; i++) {
+        const user = completedUsers[i]
+        const userName = user.name || user.email.split('@')[0]
+        console.log(`Processing certificate ${i + 1}/${completedUsers.length} for ${userName} (${user.email})...`)
+        
+        try {
+          // Step 1: Generate PDF with user's name
+          console.log(`  → Generating PDF for ${userName}...`)
+          const generateResponse = await fetch('/api/certificate/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userName: userName,
+              courseTitle: courseTitle,
+            }),
+          })
+
+          if (!generateResponse.ok) {
+            const errorData = await generateResponse.json().catch(() => ({ error: 'Failed to generate PDF' }))
+            throw new Error(errorData.error || `Failed to generate certificate PDF for ${user.email}`)
+          }
+
+          // Get PDF blob
+          const pdfBlob = await generateResponse.blob()
+          const pdfFile = new File([pdfBlob], `certificate-${userName.replace(/\s+/g, '-')}.pdf`, {
+            type: 'application/pdf',
+          })
+
+          console.log(`  ✓ PDF generated for ${userName}`)
+
+          // Step 2: Send certificate via localhost Form/submit endpoint
+          console.log(`  → Sending email to ${user.email} via localhost...`)
+          const formData = new FormData()
+          formData.append('File', pdfFile)
+          formData.append('Email', user.email)
+
+          // Create AbortController for timeout - 360 seconds (6 minutes)
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 360000) // 360 seconds timeout
+
+          try {
+            const emailResponse = await fetch(`${LOCALHOST_API}/Form/submit`, {
+              method: 'POST',
+              body: formData,
+              signal: controller.signal,
+            })
+
+            clearTimeout(timeoutId)
+
+            if (!emailResponse.ok) {
+              const errorText = await emailResponse.text()
+              throw new Error(
+                `Failed to send certificate to ${user.email}: ${emailResponse.status} ${emailResponse.statusText} - ${errorText}`
+              )
+            }
+
+            const result = await emailResponse.text()
+            console.log(`  ✓ Certificate sent to ${user.email}:`, result)
+            results.push({ status: 'fulfilled', value: { user, success: true } })
+          } catch (error: any) {
+            clearTimeout(timeoutId)
+            if (error.name === 'AbortError') {
+              throw new Error(`Request timeout for ${user.email}: Backend took too long to respond (360 seconds). Email service might be slow.`)
+            }
+            throw error
+          }
+        } catch (error: any) {
+          console.error(`  ✗ Failed to process certificate for ${user.email}:`, error.message)
+          results.push({ status: 'rejected', reason: error })
+          // Continue with next user instead of stopping
+        }
+      }
+      
+      // Separate successes and failures
+      const successes = results.filter(r => r.status === 'fulfilled')
+      const failures = results.filter(r => r.status === 'rejected')
+      
+      // Log results
+      console.log(`✓ Successfully sent: ${successes.length}/${completedUsers.length}`)
+      if (failures.length > 0) {
+        console.error(`✗ Failed to send: ${failures.length}/${completedUsers.length}`)
+        failures.forEach((f: any, index) => {
+          console.error(`  Failure ${index + 1}:`, f.reason?.message || 'Unknown error')
+        })
+      }
+      
+      // Show results to user
+      if (failures.length === completedUsers.length) {
+        const errorMessages = failures
+          .map((f: any) => f.reason?.message || 'Unknown error')
+          .join('; ')
+        alert(`Bütün sertifikatlar göndərilmədi: ${errorMessages}`)
+      } else if (failures.length > 0) {
+        const failedEmails = failures
+          .map((f: any) => {
+            const failedIndex = results.findIndex(r => r === f)
+            const user = completedUsers[failedIndex]
+            return user?.email || 'Unknown'
+          })
+          .join(', ')
+        alert(`${successes.length} sertifikat uğurla göndərildi, ${failures.length} sertifikat göndərilmədi (${failedEmails})`)
+      } else {
+        // All successful
+        const userCount = completedUsers.length
+        alert(`Sertifikatlar ${userCount} istifadəçiyə uğurla göndərildi!`)
+        onClose()
+      }
+      
+      console.log(`✓ All certificates processed`)
+      
+      // If onSend callback is provided, call it (for backward compatibility)
+      if (onSend) {
+        await onSend({
+          users: completedUsers,
+        })
+      }
     } catch (error) {
       console.error('Error sending certificates:', error)
+      alert((error as any)?.message || 'Sertifikatlar göndərilərkən xəta baş verdi')
     } finally {
       setSending(false)
     }
   }
-
-  const displayedUsers = filterCompleted
-    ? users.filter(u => u.progress >= 100)
-    : users
 
   if (!isOpen) return null
 
@@ -184,85 +420,26 @@ export default function CertificateModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Filter and Selection Controls */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filterCompleted}
-                  onChange={(e) => setFilterCompleted(e.target.checked)}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <span className="text-sm font-medium text-gray-700">
-                  Yalnız tamamlayanları göstər (100%)
-                </span>
-              </label>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={selectAllCompleted}
-                className="px-4 py-2 text-sm font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Tamamlayanları seç
-              </button>
-              <button
-                onClick={selectAll}
-                className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Hamısını seç
-              </button>
-              <button
-                onClick={deselectAll}
-                className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Seçimi ləğv et
-              </button>
-            </div>
-          </div>
-
           {/* Users List */}
           <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
-            <div className="max-h-64 overflow-y-auto">
+            <div className="max-h-96 overflow-y-auto">
               {loading ? (
                 <div className="p-8 text-center text-gray-500">
                   Yüklənir...
                 </div>
-              ) : displayedUsers.length === 0 ? (
+              ) : users.length === 0 ? (
                 <div className="p-8 text-center">
                   <div className="text-gray-400 mb-2">
                     <User className="w-12 h-12 mx-auto opacity-50" />
                   </div>
                   <p className="text-sm text-gray-500">
-                    {filterCompleted 
-                      ? 'Bu kursa 100% tamamlayan istifadəçi yoxdur'
-                      : 'Bu kursa enroll olunmuş istifadəçi yoxdur'}
+                    Bu kursa 100% tamamlayan istifadəçi yoxdur
                   </p>
                 </div>
               ) : (
                 <table className="w-full">
                   <thead className="bg-purple-100 sticky top-0">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 w-12">
-                        <input
-                          type="checkbox"
-                          checked={displayedUsers.length > 0 && displayedUsers.every(u => selectedUserIds.has(u.id))}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              const allIds = new Set<string>(displayedUsers.map(u => u.id))
-                              const newSelection = new Set<string>(selectedUserIds)
-                              allIds.forEach(id => newSelection.add(id))
-                              setSelectedUserIds(newSelection)
-                            } else {
-                              const displayedIds = new Set<string>(displayedUsers.map(u => u.id))
-                              const newSelection = new Set<string>(selectedUserIds)
-                              displayedIds.forEach(id => newSelection.delete(id))
-                              setSelectedUserIds(newSelection)
-                            }
-                          }}
-                          className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                        />
-                      </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700">İstifadəçi</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700">Email</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700">Proqress</th>
@@ -270,28 +447,18 @@ export default function CertificateModal({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {displayedUsers.map((user) => (
+                    {users.map((user) => (
                       <tr
                         key={user.id}
-                        className={`hover:bg-purple-50 transition-colors ${
-                          selectedUserIds.has(user.id) ? 'bg-purple-50' : ''
-                        }`}
+                        className="hover:bg-purple-50 transition-colors"
                       >
-                        <td className="px-4 py-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedUserIds.has(user.id)}
-                            onChange={() => toggleUserSelection(user.id)}
-                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                          />
-                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
                               <User className="w-4 h-4 text-purple-600" />
                             </div>
                             <span className="text-sm font-medium text-gray-900">
-                              {user.name || 'İstifadəçi'}
+                              {user.name || user.email}
                             </span>
                           </div>
                         </td>
@@ -314,16 +481,32 @@ export default function CertificateModal({
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          {user.progress >= 100 ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Tamamlanıb
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
-                              Davam edir
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {user.progress >= 100 ? (
+                              <>
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Tamamlanıb
+                                </span>
+                                <button
+                                  onClick={() => handleDownloadCertificate(user)}
+                                  disabled={downloadingUser === user.id}
+                                  className="p-1.5 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title={`${user.name || user.email} - Sertifikatı endir`}
+                                >
+                                  {downloadingUser === user.id ? (
+                                    <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                                  ) : (
+                                    <Download className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                                Davam edir
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -331,84 +514,6 @@ export default function CertificateModal({
                 </table>
               )}
             </div>
-          </div>
-
-          {/* Selected Count */}
-          <div className="text-sm text-gray-600">
-            <strong>{selectedUserIds.size}</strong> istifadəçi seçilib
-          </div>
-
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              <User className="w-4 h-4 inline mr-1" />
-              Ad *
-            </label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all"
-              placeholder="Sertifikat adını daxil edin"
-            />
-          </div>
-
-          {/* Date */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              <Calendar className="w-4 h-4 inline mr-1" />
-              Tarix *
-            </label>
-            <input
-              type="date"
-              required
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all"
-            />
-          </div>
-
-          {/* Certificate PDF Upload */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              <FileText className="w-4 h-4 inline mr-1" />
-              Sertifikat PDF Faylı *
-            </label>
-            <div className="flex items-center gap-4">
-              <label className="flex-1 cursor-pointer">
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <div className="flex items-center gap-4 px-4 py-2.5 border-2 border-gray-200 rounded-xl focus-within:border-purple-600 focus-within:ring-2 focus-within:ring-purple-300 transition-all">
-                  <button
-                    type="button"
-                    className="px-4 py-1.5 bg-purple-100 text-purple-700 rounded-lg font-medium hover:bg-purple-200 transition-colors"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      const input = e.currentTarget.parentElement?.querySelector('input[type="file"]') as HTMLInputElement
-                      input?.click()
-                    }}
-                  >
-                    Dosya Seç
-                  </button>
-                  <span className="text-sm text-gray-500 flex-1">
-                    {certificateFile ? certificateFile.name : 'Dosya seçilmədi'}
-                  </span>
-                </div>
-              </label>
-              {certificateFile && (
-                <div className="flex items-center gap-2 text-sm text-green-600">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              )}
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              Yalnız PDF formatında fayl yükləyə bilərsiniz
-            </p>
           </div>
         </div>
 
@@ -422,7 +527,7 @@ export default function CertificateModal({
           </button>
           <button
             onClick={handleSend}
-            disabled={sending || selectedUserIds.size === 0 || !certificateFile || !name.trim() || !date.trim()}
+            disabled={sending || users.filter(u => u.progress >= 100).length === 0}
             className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-xl font-semibold shadow-lg shadow-purple-900/30 hover:shadow-purple-800/40 transition-all duration-300 hover:scale-105 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             <Send className="w-5 h-5" />

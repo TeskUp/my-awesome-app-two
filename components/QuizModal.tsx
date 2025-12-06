@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Save, HelpCircle, CheckCircle2, FileQuestion, Lightbulb, Tag } from 'lucide-react'
+import { Quiz } from '@/services/quizApi'
 
 export interface QuizQuestion {
   questionNumber: number
@@ -18,7 +19,9 @@ interface QuizModalProps {
   isOpen: boolean
   sectionId: string
   sectionTitle: string
+  quiz?: Quiz | null // Optional quiz for edit mode
   onSave: (quiz: {
+    category?: string
     questions: QuizQuestion[]
   }) => Promise<void>
   onClose: () => void
@@ -28,29 +31,89 @@ export default function QuizModal({
   isOpen,
   sectionId,
   sectionTitle,
+  quiz,
   onSave,
   onClose,
 }: QuizModalProps) {
   const [numberOfQuestions, setNumberOfQuestions] = useState(1)
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
+  const [category, setCategory] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Initialize quiz data when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Initialize questions based on numberOfQuestions
-      const initialQuestions: QuizQuestion[] = Array.from({ length: numberOfQuestions }, (_, index) => ({
-        questionNumber: index + 1,
-        title: '',
-        description: '',
-        questionType: 'multiple-choice',
-        options: ['', '', '', ''],
-        correctAnswer: 0,
-        category: '',
-        hint: '',
-      }))
-      setQuestions(initialQuestions)
+      if (quiz) {
+        // Edit mode: load existing quiz data
+        setCategory(quiz.category || '')
+        if (quiz.questions && quiz.questions.length > 0) {
+          setQuestions(quiz.questions)
+          setNumberOfQuestions(quiz.questions.length)
+        } else {
+          // Fallback if questions are not loaded
+          const initialQuestions: QuizQuestion[] = Array.from({ length: numberOfQuestions }, (_, index) => ({
+            questionNumber: index + 1,
+            title: '',
+            description: '',
+            questionType: 'multiple-choice',
+            options: ['', '', '', ''],
+            correctAnswer: 0,
+            category: '',
+            hint: '',
+          }))
+          setQuestions(initialQuestions)
+        }
+      } else {
+        // Create mode: initialize empty questions
+        const initialQuestions: QuizQuestion[] = Array.from({ length: numberOfQuestions }, (_, index) => ({
+          questionNumber: index + 1,
+          title: '',
+          description: '',
+          questionType: 'multiple-choice',
+          options: ['', '', '', ''],
+          correctAnswer: 0,
+          category: '',
+          hint: '',
+        }))
+        setQuestions(initialQuestions)
+        setCategory('')
+      }
     }
-  }, [isOpen, numberOfQuestions])
+  }, [isOpen, quiz]) // Remove numberOfQuestions from dependencies to prevent re-initialization
+
+  // Handle question count change - preserve existing questions
+  useEffect(() => {
+    if (isOpen) {
+      setQuestions((prevQuestions) => {
+        // Only update if count actually changed
+        if (prevQuestions.length === numberOfQuestions) {
+          return prevQuestions
+        }
+        
+        const newQuestions: QuizQuestion[] = Array.from({ length: numberOfQuestions }, (_, index) => {
+          // Keep existing question if available, otherwise create new one
+          const existing = prevQuestions[index]
+          if (existing) {
+            return {
+              ...existing,
+              questionNumber: index + 1,
+            }
+          }
+          return {
+            questionNumber: index + 1,
+            title: '',
+            description: '',
+            questionType: 'multiple-choice',
+            options: ['', '', '', ''],
+            correctAnswer: 0,
+            category: '',
+            hint: '',
+          }
+        })
+        return newQuestions
+      })
+    }
+  }, [numberOfQuestions, isOpen]) // Only react to numberOfQuestions changes
 
   const handleQuestionTypeChange = (index: number, type: 'multiple-choice' | 'true-false') => {
     const updatedQuestions = [...questions]
@@ -109,12 +172,17 @@ export default function QuizModal({
           alert(`Sual ${question.questionNumber} üçün düzgün cavab seçilməlidir`)
           return
         }
+      } else if (question.questionType === 'true-false') {
+        if (question.correctAnswer === undefined || (question.correctAnswer !== 0 && question.correctAnswer !== 1)) {
+          alert(`Sual ${question.questionNumber} üçün düzgün cavab seçilməlidir (True və ya False)`)
+          return
+        }
       }
     }
 
     setSaving(true)
     try {
-      await onSave({ questions })
+      await onSave({ category, questions })
       onClose()
     } catch (error) {
       console.error('Error saving quiz:', error)
@@ -135,7 +203,7 @@ export default function QuizModal({
               <FileQuestion className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Quiz Əlavə Et</h2>
+              <h2 className="text-xl font-bold text-white">{quiz ? 'Quiz Redaktə Et' : 'Quiz Əlavə Et'}</h2>
               <p className="text-sm text-white/90">{sectionTitle}</p>
             </div>
           </div>
@@ -149,6 +217,21 @@ export default function QuizModal({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Category */}
+          <div className="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <Tag className="w-4 h-4 inline mr-1" />
+              Category
+            </label>
+            <input
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-4 py-2.5 border-2 border-purple-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all"
+              placeholder="Məsələn: Design Principles and Color Theory"
+            />
+          </div>
+
           {/* Number of Questions Selector */}
           <div className="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -160,20 +243,7 @@ export default function QuizModal({
               onChange={(e) => {
                 const count = parseInt(e.target.value)
                 setNumberOfQuestions(count)
-                const newQuestions: QuizQuestion[] = Array.from({ length: count }, (_, index) => {
-                  const existing = questions[index]
-                  return existing || {
-                    questionNumber: index + 1,
-                    title: '',
-                    description: '',
-                    questionType: 'multiple-choice',
-                    options: ['', '', '', ''],
-                    correctAnswer: 0,
-                    category: '',
-                    hint: '',
-                  }
-                })
-                setQuestions(newQuestions)
+                // Questions will be updated by useEffect
               }}
               className="w-full px-4 py-2.5 border-2 border-purple-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all"
             >
@@ -338,20 +408,6 @@ export default function QuizModal({
                   </div>
                 )}
 
-                {/* Category */}
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Tag className="w-4 h-4 inline mr-1" />
-                    Category
-                  </label>
-                  <input
-                    type="text"
-                    value={question.category || ''}
-                    onChange={(e) => handleQuestionFieldChange(questionIndex, 'category', e.target.value)}
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-300 transition-all"
-                    placeholder="Məsələn: Design Principles and Color Theory"
-                  />
-                </div>
 
                 {/* Hint */}
                 <div>

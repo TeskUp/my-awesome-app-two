@@ -1099,31 +1099,179 @@ export default function CoursesPage() {
           onClose={() => setCertificateModal({ isOpen: false, courseId: null, courseTitle: null })}
           onSend={async (data) => {
             try {
-              // Hələlik email service yoxdur, ona görə də yalnız success mesajı göstəririk
-              // Gələcəkdə email service əlavə olunanda burada backend-ə göndəriləcək
-              
+              if (data.users.length === 0) {
+                throw new Error('Bu kursa enroll olunmuş istifadəçi yoxdur')
+              }
+
+              // Get today's date in DD.MM.YYYY format
+              const today = new Date()
+              const day = String(today.getDate()).padStart(2, '0')
+              const month = String(today.getMonth() + 1).padStart(2, '0')
+              const year = today.getFullYear()
+              const formattedDate = `${day}.${month}.${year}`
+
+              // Use course title as certificate name
+              const certificateName = certificateModal.courseTitle || 'Certificate'
+
               console.log('=== CERTIFICATE SEND DATA ===')
-              console.log('Selected Users:', data.selectedUsers.length)
-              console.log('Certificate Name:', data.name)
-              console.log('Certificate Date:', data.date)
+              console.log('Users:', data.users.length)
+              console.log('Certificate Name:', certificateName)
+              console.log('Certificate Date:', formattedDate)
               console.log('Course ID:', certificateModal.courseId)
-              console.log('Has File:', !!data.certificateFile)
-              console.log('File Name:', data.certificateFile?.name)
+              console.log('Course Title:', certificateModal.courseTitle)
               console.log('============================')
+
+              // Send certificate to each user sequentially to avoid timeout issues
+              const results: Array<{ status: 'fulfilled' | 'rejected', value?: any, reason?: any }> = []
               
-              // Simulate delay for better UX
-              await new Promise(resolve => setTimeout(resolve, 500))
+              for (let i = 0; i < data.users.length; i++) {
+                const user = data.users[i]
+                const userName = user.name || user.email.split('@')[0] // Use name or email prefix
+                console.log(`Processing certificate ${i + 1}/${data.users.length} for ${userName} (${user.email})...`)
+                
+                try {
+                  // Step 1: Generate PDF with user's name
+                  console.log(`  → Generating PDF for ${userName}...`)
+                  const generateResponse = await fetch('/api/certificate/generate', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      userName: userName,
+                      courseTitle: certificateModal.courseTitle,
+                    }),
+                  })
+
+                  if (!generateResponse.ok) {
+                    const errorData = await generateResponse.json().catch(() => ({ error: 'Failed to generate PDF' }))
+                    throw new Error(errorData.error || `Failed to generate certificate PDF for ${user.email}`)
+                  }
+
+                  // Get PDF blob
+                  const pdfBlob = await generateResponse.blob()
+                  const pdfFile = new File([pdfBlob], `certificate-${userName.replace(/\s+/g, '-')}.pdf`, {
+                    type: 'application/pdf',
+                  })
+
+                  console.log(`  ✓ PDF generated for ${userName}`)
+
+                  // Step 2: Save certificate to backend (so user can view it later)
+                  // Each user gets their own certificate saved with their email
+                  console.log(`  → Saving certificate to backend for ${user.email}...`)
+                  try {
+                    const saveFormData = new FormData()
+                    saveFormData.append('Name', certificateName)
+                    saveFormData.append('Date', formattedDate)
+                    saveFormData.append('CourseId', certificateModal.courseId!)
+                    saveFormData.append('Email', user.email) // Add email to identify user
+                    saveFormData.append('File', pdfFile)
+
+                    const saveResponse = await fetch('/api/certificate/manual', {
+                      method: 'POST',
+                      body: saveFormData,
+                    })
+
+                    if (saveResponse.ok) {
+                      console.log(`  ✓ Certificate saved to backend for ${user.email}`)
+                    } else {
+                      console.warn(`  ⚠ Failed to save certificate to backend for ${user.email}, but continuing...`)
+                    }
+                  } catch (saveError) {
+                    console.warn(`  ⚠ Error saving certificate to backend for ${user.email}:`, saveError)
+                    // Continue with email sending even if save fails
+                  }
+
+                  // Step 3: Send certificate via email
+                  console.log(`  → Sending email to ${user.email}...`)
+                  const formData = new FormData()
+                  formData.append('Name', certificateName)
+                  formData.append('Date', formattedDate)
+                  formData.append('File', pdfFile)
+                  formData.append('Email', user.email)
+
+                  // Create AbortController for timeout - increased to 360 seconds (6 minutes)
+                  const controller = new AbortController()
+                  const timeoutId = setTimeout(() => controller.abort(), 360000) // 360 seconds timeout
+
+                  try {
+                    const emailResponse = await fetch('/api/form/submit', {
+                      method: 'POST',
+                      body: formData,
+                      signal: controller.signal,
+                    })
+
+                    clearTimeout(timeoutId)
+
+                    if (!emailResponse.ok) {
+                      const errorData = await emailResponse.json()
+                      throw new Error(
+                        errorData.error || 
+                        `Failed to send certificate to ${user.email}: ${emailResponse.status} ${emailResponse.statusText}`
+                      )
+                    }
+
+                    const result = await emailResponse.json()
+                    console.log(`  ✓ Certificate sent to ${user.email}:`, result.message)
+                    results.push({ status: 'fulfilled', value: { user, success: true } })
+                  } catch (error: any) {
+                    clearTimeout(timeoutId)
+                    if (error.name === 'AbortError') {
+                      throw new Error(`Request timeout for ${user.email}: Backend took too long to respond (360 seconds). Email service might be slow.`)
+                    }
+                    throw error
+                  }
+                } catch (error: any) {
+                  console.error(`  ✗ Failed to process certificate for ${user.email}:`, error.message)
+                  results.push({ status: 'rejected', reason: error })
+                  // Continue with next user instead of stopping
+                }
+              }
               
-              // Show success message
-              const userCount = data.selectedUsers.length
-              const userNames = data.selectedUsers.map(u => u.name || u.email).join(', ')
+              // Separate successes and failures
+              const successes = results.filter(r => r.status === 'fulfilled')
+              const failures = results.filter(r => r.status === 'rejected')
               
-              showToast(
-                `Sertifikatlar ${userCount} istifadəçiyə uğurla göndərildi!${userCount <= 3 ? ` (${userNames})` : ''}`,
-                'success'
-              )
+              // Log results
+              console.log(`✓ Successfully sent: ${successes.length}/${data.users.length}`)
+              if (failures.length > 0) {
+                console.error(`✗ Failed to send: ${failures.length}/${data.users.length}`)
+                failures.forEach((f: any, index) => {
+                  console.error(`  Failure ${index + 1}:`, f.reason?.message || 'Unknown error')
+                })
+              }
               
-              console.log('✓ Certificates sent successfully (simulated)')
+              // If all failed, throw error
+              if (failures.length === data.users.length) {
+                const errorMessages = failures
+                  .map((f: any) => f.reason?.message || 'Unknown error')
+                  .join('; ')
+                throw new Error(`Bütün sertifikatlar göndərilmədi: ${errorMessages}`)
+              }
+              
+              // If some failed, show warning but don't throw
+              if (failures.length > 0) {
+                const failedEmails = failures
+                  .map((f: any) => {
+                    const failedIndex = results.findIndex(r => r === f)
+                    const user = data.users[failedIndex]
+                    return user?.email || 'Unknown'
+                  })
+                  .join(', ')
+                showToast(
+                  `${successes.length} sertifikat uğurla göndərildi, ${failures.length} sertifikat göndərilmədi (${failedEmails})`,
+                  'warning'
+                )
+              } else {
+                // Show success message
+                const userCount = data.users.length
+                showToast(
+                  `Sertifikatlar ${userCount} istifadəçiyə uğurla göndərildi!`,
+                  'success'
+                )
+              }
+              
+              console.log(`✓ All certificates processed`)
             } catch (error: any) {
               console.error('Error sending certificates:', error)
               showToast(error?.message || 'Sertifikatlar göndərilərkən xəta baş verdi', 'error')

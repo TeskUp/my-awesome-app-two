@@ -1,26 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAdminToken } from '@/services/authApi'
 
 const API_BASE_URL = 'https://teskup-production.up.railway.app/api'
 
-export async function DELETE(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { quizId: string } }
+) {
   try {
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-    
-    if (!id) {
+    const { quizId } = params
+
+    if (!quizId) {
       return NextResponse.json(
         { error: 'Quiz ID is required' },
         { status: 400 }
       )
     }
 
-    // Try to delete quiz via backend API using Swagger endpoint
+    // Try to get quiz from backend using Swagger endpoint
     try {
       const response = await fetch(
-        `${API_BASE_URL}/Quiz/${id}`,
+        `${API_BASE_URL}/Quiz/${quizId}`,
         {
-          method: 'DELETE',
+          method: 'GET',
           headers: {
             'Accept': 'application/json',
           },
@@ -28,25 +29,31 @@ export async function DELETE(request: NextRequest) {
         }
       )
 
-      if (response.ok || response.status === 204) {
-        return NextResponse.json({ success: true })
+      if (response.ok) {
+        const data = await response.json()
+        return NextResponse.json(data)
+      } else if (response.status === 404) {
+        return NextResponse.json(
+          { error: 'Quiz not found' },
+          { status: 404 }
+        )
       } else {
         const errorText = await response.text()
-        console.error('Error deleting quiz:', errorText)
+        console.error('Error fetching quiz:', errorText)
         return NextResponse.json(
-          { error: `Failed to delete quiz: ${errorText}` },
+          { error: 'Failed to fetch quiz' },
           { status: response.status }
         )
       }
     } catch (fetchError: any) {
-      console.error('Error deleting quiz:', fetchError)
+      console.error('Error in quiz fetch:', fetchError)
       return NextResponse.json(
-        { error: fetchError?.message || 'Failed to delete quiz' },
+        { error: 'Failed to fetch quiz' },
         { status: 500 }
       )
     }
   } catch (error: any) {
-    console.error('Error in delete quiz API route:', error)
+    console.error('Error in get quiz API route:', error)
     return NextResponse.json(
       { error: error?.message || 'Internal server error' },
       { status: 500 }
