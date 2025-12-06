@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Read template PDF from root directory
-    const templatePath = path.join(process.cwd(), 'stranger certificate.pdf')
+    const templatePath = path.join(process.cwd(), 'TeskUp Certificate.pdf')
     
     if (!fs.existsSync(templatePath)) {
       return NextResponse.json(
@@ -34,28 +34,25 @@ export async function POST(request: NextRequest) {
     const firstPage = pages[0]
     const { width, height } = firstPage.getSize()
 
-    // Embed a standard font
-    const font = await pdfDoc.embedFont(StandardFonts.TimesRoman)
+    // Embed fonts - using bold font for beautiful, large text
     const boldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold)
 
-    // Calculate position for name (center of page, between "This to certify that" and "successfully completed")
-    // Based on typical certificate layout, the name should be around 48-52% down the page
-    // This places it in the blank space between the two text lines
-    const nameY = height * 0.50 // Center of the blank space
+    // Calculate position for name - place it in the gradient shape area (center of page)
+    // Based on TeskUp Certificate design, the name should be in the middle gradient area
+    const nameY = height * 0.48 // Slightly above center for better visual balance
     const nameX = width / 2 // Center horizontally
 
-    // Draw the user's name with large, beautiful font
-    // Use larger font size for better visibility and elegance
-    const fontSize = 36 // Large, beautiful font size
-    // Use boldFont for width calculation since we're using boldFont to draw
+    // Draw the user's name with large, beautiful, bold font
+    // Use larger font size for impressive appearance
+    const fontSize = 42 // Large, beautiful font size - increased for better visibility
     const textWidth = boldFont.widthOfTextAtSize(userName, fontSize)
     
     firstPage.drawText(userName, {
       x: nameX - textWidth / 2, // Center the text
       y: nameY,
       size: fontSize,
-      font: boldFont, // Use bold font for better appearance
-      color: rgb(0, 0, 0), // Black color
+      font: boldFont, // Use bold font for beautiful, prominent appearance
+      color: rgb(0, 0, 0), // Black color for contrast against gradient
     })
 
     // Generate PDF bytes
