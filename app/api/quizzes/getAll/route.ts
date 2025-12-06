@@ -27,14 +27,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Try to get quizzes from backend
+    // Try to get quizzes from backend using Swagger endpoint
     try {
       const response = await fetch(
-        `${API_BASE_URL}/admin/sections/${sectionId}/quizzes`,
+        `${API_BASE_URL}/Quiz/sections/${sectionId}`,
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${authToken}`,
             'Accept': 'application/json',
           },
           cache: 'no-store',
@@ -43,7 +42,7 @@ export async function GET(request: NextRequest) {
 
       if (response.ok) {
         const data = await response.json()
-        return NextResponse.json(Array.isArray(data) ? data : data.quizzes || [])
+        return NextResponse.json(Array.isArray(data) ? data : [])
       } else if (response.status === 404) {
         // Endpoint doesn't exist, return empty array
         console.log('Quizzes endpoint not found, returning empty array')

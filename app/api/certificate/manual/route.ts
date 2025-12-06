@@ -49,6 +49,12 @@ export async function POST(request: NextRequest) {
     }
     formData.append('CourseId', String(courseId))
 
+    // Handle Email (to identify which user the certificate belongs to)
+    const email = incomingFormData.get('Email')
+    if (email && String(email).trim() !== '') {
+      formData.append('Email', String(email))
+    }
+
     // Handle File
     const file = incomingFormData.get('File')
     if (file && file instanceof File) {

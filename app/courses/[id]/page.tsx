@@ -12,9 +12,9 @@ import QuizModal, { QuizQuestion } from '@/components/QuizModal'
 import { getCourseDetail, CourseResponse } from '@/services/courseApi'
 import { createSection, updateSection, deleteSection, getAllSections, Section } from '@/services/sectionApi'
 import { createLecture, updateLecture, deleteLecture, getAllLectures, Lecture } from '@/services/lectureApi'
-import { createQuiz, getAllQuizzes, deleteQuiz, Quiz } from '@/services/quizApi'
+import { createQuiz, getAllQuizzes, deleteQuiz, updateQuiz, Quiz } from '@/services/quizApi'
 import VideoPlayer from '@/components/VideoPlayer'
-import { User, Tag, Award, DollarSign, Globe, Calendar } from 'lucide-react'
+import { User, Tag, Award, DollarSign, Globe, Calendar, Download, FileText } from 'lucide-react'
 
 export default function CourseDetailPage() {
   const params = useParams()
@@ -33,6 +33,7 @@ export default function CourseDetailPage() {
   const [editingLecture, setEditingLecture] = useState<Lecture | null>(null)
   const [isQuizModalOpen, setIsQuizModalOpen] = useState(false)
   const [selectedSectionId, setSelectedSectionId] = useState<string>('')
+  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null)
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
     type: 'section' | 'lecture' | 'quiz'
@@ -51,6 +52,10 @@ export default function CourseDetailPage() {
     instructor?: { id: string; name?: string; email?: string }
     category?: string
   }>({})
+  const [certificates, setCertificates] = useState<any[]>([])
+  const [loadingCertificates, setLoadingCertificates] = useState(false)
+  const [downloadingCert, setDownloadingCert] = useState<string | null>(null)
+  const [enrolledUsers, setEnrolledUsers] = useState<any[]>([])
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success', duration: number = 3000) => {
     const id = Date.now().toString()
@@ -64,8 +69,185 @@ export default function CourseDetailPage() {
   useEffect(() => {
     if (courseId) {
       loadCourseData()
+      loadEnrolledUsersForCertificates()
     }
   }, [courseId])
+
+  useEffect(() => {
+    if (enrolledUsers.length > 0 || course) {
+      loadCertificates()
+    }
+  }, [enrolledUsers, course])
+
+  const loadEnrolledUsersForCertificates = async () => {
+    try {
+      const response = await fetch(`/api/courses/${courseId}/enrolled-users`)
+      if (response.ok) {
+        const data = await response.json()
+        // Get users with 100% progress (completed users)
+        const completedUsers = (data.users || []).filter((u: any) => u.progress >= 100)
+        
+        // Add test users for testing
+        const testUsers = [
+          { id: 'test-rauf', email: 'rauf123@gmail.com', name: 'Rauf Bextiyarli', progress: 100 },
+          { id: 'test-ruslan', email: 'test1@example.com', name: 'Ruslan Guluyev', progress: 100 },
+          { id: 'test-elvin', email: 'test2@example.com', name: 'Elvin Mammadov', progress: 100 },
+          { id: 'test-vusal', email: 'vusalguluyev153@gmail.com', name: 'Vusal', progress: 100 },
+          { id: 'test-nezrin', email: 'nbayramli2007@gmail.com', name: 'Nazrin Bayramli', progress: 100 },
+        ]
+        
+        const existingEmails = new Set(completedUsers.map((u: any) => u.email))
+        const newTestUsers = testUsers.filter(tu => !existingEmails.has(tu.email))
+        const allUsers = [...completedUsers, ...newTestUsers]
+        
+        setEnrolledUsers(allUsers)
+      }
+    } catch (error) {
+      console.error('Error loading enrolled users:', error)
+      // Even if error, show test users
+      const testUsers = [
+        { id: 'test-rauf', email: 'rauf123@gmail.com', name: 'Rauf Bextiyarli', progress: 100 },
+        { id: 'test-ruslan', email: 'test1@example.com', name: 'Ruslan Guluyev', progress: 100 },
+        { id: 'test-elvin', email: 'test2@example.com', name: 'Elvin Mammadov', progress: 100 },
+        { id: 'test-vusal', email: 'vusalguluyev153@gmail.com', name: 'Vusal', progress: 100 },
+        { id: 'test-nezrin', email: 'nbayramli2007@gmail.com', name: 'Nəzrin Bayramlı', progress: 100 },
+      ]
+      setEnrolledUsers(testUsers)
+    }
+  }
+
+  const loadCertificates = async () => {
+    setLoadingCertificates(true)
+    try {
+      const response = await fetch(`/api/certificate/${courseId}`)
+      if (response.ok) {
+        const data = await response.json()
+        const backendCertificates = data.certificates || []
+        
+        // If no backend certificates, create certificates from enrolled users (for testing)
+        if (backendCertificates.length === 0 && enrolledUsers.length > 0) {
+          const userCertificates = enrolledUsers.map((user: any) => ({
+            id: user.id || user.email,
+            certificateNumber: `CERT-${user.email.split('@')[0].toUpperCase()}`,
+            issueDate: new Date().toISOString(),
+            certificateUrl: null, // Will be generated on download
+            courseTitle: course?.details?.[0]?.title || 'Course',
+            userName: user.name || user.email.split('@')[0],
+            fullName: user.name,
+            email: user.email,
+          }))
+          setCertificates(userCertificates)
+        } else {
+          setCertificates(backendCertificates)
+        }
+      } else {
+        console.error('Failed to load certificates')
+        // If backend fails, create certificates from enrolled users (for testing)
+        if (enrolledUsers.length > 0) {
+          const userCertificates = enrolledUsers.map((user: any) => ({
+            id: user.id || user.email,
+            certificateNumber: `CERT-${user.email.split('@')[0].toUpperCase()}`,
+            issueDate: new Date().toISOString(),
+            certificateUrl: null,
+            courseTitle: course?.details?.[0]?.title || 'Course',
+            userName: user.name || user.email.split('@')[0],
+            fullName: user.name,
+            email: user.email,
+          }))
+          setCertificates(userCertificates)
+        } else {
+          setCertificates([])
+        }
+      }
+    } catch (error) {
+      console.error('Error loading certificates:', error)
+      // If error, create certificates from enrolled users (for testing)
+      if (enrolledUsers.length > 0) {
+        const userCertificates = enrolledUsers.map((user: any) => ({
+          id: user.id || user.email,
+          certificateNumber: `CERT-${user.email.split('@')[0].toUpperCase()}`,
+          issueDate: new Date().toISOString(),
+          certificateUrl: null,
+          courseTitle: course?.details?.[0]?.title || 'Course',
+          userName: user.name || user.email.split('@')[0],
+          fullName: user.name,
+          email: user.email,
+        }))
+        setCertificates(userCertificates)
+      } else {
+        setCertificates([])
+      }
+    } finally {
+      setLoadingCertificates(false)
+    }
+  }
+
+  const handleDownloadCertificate = async (certificate: any) => {
+    const certId = certificate.id || certificate.certificateId
+    
+    // If already downloading this certificate, return
+    if (downloadingCert === certId) return
+    
+    setDownloadingCert(certId)
+    
+    try {
+      // If certificate URL exists, download directly
+      if (certificate.certificateUrl) {
+        const link = document.createElement('a')
+        link.href = certificate.certificateUrl
+        link.download = `certificate-${certificate.certificateNumber || certId}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        return
+      }
+
+      // Otherwise, generate PDF from user name
+      // Try to get user name from certificate data or use a default
+      const userName = certificate.userName || 
+                       certificate.fullName || 
+                       certificate.studentName ||
+                       certificate.name ||
+                       (certificate.email ? certificate.email.split('@')[0] : 'İstifadəçi')
+      const certCourseTitle = certificate.courseTitle || 
+                              course?.details?.[0]?.title || 
+                              'Course'
+      
+      const response = await fetch('/api/certificate/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userName: userName,
+          courseTitle: certCourseTitle,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to generate PDF' }))
+        throw new Error(errorData.error || 'Sertifikat yaradıla bilmədi')
+      }
+
+      // Get PDF blob and download
+      const pdfBlob = await response.blob()
+      const url = window.URL.createObjectURL(pdfBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `certificate-${userName.replace(/\s+/g, '-')}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      showToast('Sertifikat uğurla endirildi', 'success')
+    } catch (error: any) {
+      console.error('Error downloading certificate:', error)
+      showToast(error?.message || 'Sertifikat endirilərkən xəta baş verdi', 'error')
+    } finally {
+      setDownloadingCert(null)
+    }
+  }
 
   const loadCourseData = async () => {
     try {
@@ -357,25 +539,45 @@ export default function CourseDetailPage() {
 
   const handleAddQuiz = (sectionId: string) => {
     setSelectedSectionId(sectionId)
+    setEditingQuiz(null)
     setIsQuizModalOpen(true)
   }
 
-  const handleSaveQuiz = async (quizData: { questions: QuizQuestion[] }) => {
+  const handleEditQuiz = (quiz: Quiz) => {
+    setEditingQuiz(quiz)
+    setSelectedSectionId(quiz.sectionId)
+    setIsQuizModalOpen(true)
+  }
+
+  const handleSaveQuiz = async (quizData: { category?: string; questions: QuizQuestion[] }) => {
     try {
-      const newQuiz = await createQuiz({
-        sectionId: selectedSectionId,
-        questions: quizData.questions,
-      })
-      showToast('Quiz created successfully!', 'success')
-      setQuizzes((prev) => {
-        const sectionQuizzes = prev[selectedSectionId] || []
-        return {
-          ...prev,
-          [selectedSectionId]: [...sectionQuizzes, newQuiz],
-        }
-      })
+      if (editingQuiz) {
+        // Update existing quiz
+        await updateQuiz({
+          id: editingQuiz.id,
+          category: quizData.category,
+          questions: quizData.questions,
+        })
+        showToast('Quiz updated successfully!', 'success')
+      } else {
+        // Create new quiz
+        const newQuiz = await createQuiz({
+          sectionId: selectedSectionId,
+          category: quizData.category,
+          questions: quizData.questions,
+        })
+        showToast('Quiz created successfully!', 'success')
+        setQuizzes((prev) => {
+          const sectionQuizzes = prev[selectedSectionId] || []
+          return {
+            ...prev,
+            [selectedSectionId]: [...sectionQuizzes, newQuiz],
+          }
+        })
+      }
       setIsQuizModalOpen(false)
       setSelectedSectionId('')
+      setEditingQuiz(null)
       await loadCourseData()
     } catch (error: any) {
       console.error('Error saving quiz:', error)
@@ -384,11 +586,12 @@ export default function CourseDetailPage() {
   }
 
   const handleDeleteQuiz = (quiz: Quiz) => {
+    const questionCount = quiz.questionsCount || (quiz.questions && quiz.questions.length) || 0
     setConfirmModal({
       isOpen: true,
       type: 'quiz',
       id: quiz.id,
-      title: `Quiz (${quiz.questions.length} sual)`,
+      title: `Quiz (${questionCount} sual)`,
     })
   }
 
@@ -671,12 +874,12 @@ export default function CourseDetailPage() {
                               <div className="flex-1">
                                 <div className="font-semibold text-gray-900">Quiz</div>
                                 <div className="text-sm text-gray-600 mt-1">
-                                  {quiz.questions.length} sual
+                                  {quiz.questionsCount || (quiz.questions && quiz.questions.length) || 0} sual
                                 </div>
-                                {quiz.questions[0]?.category && (
+                                {quiz.category && (
                                   <div className="mt-1">
                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                                      {quiz.questions[0].category}
+                                      {quiz.category}
                                     </span>
                                   </div>
                                 )}
@@ -685,6 +888,16 @@ export default function CourseDetailPage() {
                                 <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
                                   Quiz
                                 </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleEditQuiz(quiz)
+                                  }}
+                                  className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
@@ -832,6 +1045,139 @@ export default function CourseDetailPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Completed Users with Certificates */}
+                {enrolledUsers.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <User className="w-5 h-5 text-purple-600" />
+                      Tamamlayan İstifadəçilər
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {enrolledUsers.map((user: any) => {
+                        const userName = user.name || user.email.split('@')[0]
+                        const isDownloading = downloadingCert === (user.id || user.email)
+                        return (
+                          <button
+                            key={user.id || user.email}
+                            onClick={() => {
+                              // Create certificate object for download
+                              const cert = {
+                                id: user.id || user.email,
+                                userName: userName,
+                                fullName: user.name,
+                                email: user.email,
+                                courseTitle: course?.details?.[0]?.title || 'Course',
+                              }
+                              handleDownloadCertificate(cert)
+                            }}
+                            disabled={isDownloading}
+                            className="relative group flex flex-col items-center justify-center p-4 bg-gradient-to-br from-purple-50 via-purple-100 to-indigo-50 rounded-xl border-2 border-purple-200 hover:border-purple-400 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[120px]"
+                            title={`${userName} - Sertifikatı endir`}
+                          >
+                            <div className="absolute top-2 right-2">
+                              {isDownloading ? (
+                                <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center group-hover:bg-purple-700 transition-colors shadow-md">
+                                  <Download className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center mb-3 shadow-lg">
+                              <Award className="w-8 h-8 text-white" />
+                            </div>
+                            <p 
+                              className="text-base font-bold text-gray-900 text-center px-2"
+                              style={{ 
+                                fontFamily: '"Inter", "Segoe UI", "Roboto", sans-serif',
+                                letterSpacing: '0.01em'
+                              }}
+                            >
+                              {userName}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1 text-center truncate w-full px-2">
+                              {user.email}
+                            </p>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Certificates Section */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Award className="w-5 h-5 text-purple-600" />
+                    Sertifikatlar
+                  </h3>
+                  
+                  {loadingCertificates ? (
+                    <div className="text-center py-4 text-gray-500 text-sm">
+                      Yüklənir...
+                    </div>
+                  ) : certificates.length === 0 ? (
+                    <div className="text-center py-4">
+                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-2">
+                        <FileText className="w-6 h-6 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        Kurs tamamlandıqda sertifikat burada görünəcək
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {certificates.map((certificate, index) => (
+                        <div
+                          key={certificate.id || index}
+                          className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Award className="w-4 h-4 text-purple-600" />
+                                <span className="text-sm font-semibold text-gray-900">
+                                  {certificate.userName || certificate.fullName || certificate.email || `Sertifikat #${index + 1}`}
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                  Tamamlanıb
+                                  <button
+                                    onClick={() => handleDownloadCertificate(certificate)}
+                                    disabled={downloadingCert === (certificate.id || certificate.certificateId)}
+                                    className="hover:text-green-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                                    title="Sertifikatı endir"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+                                </span>
+                              </div>
+                              {certificate.issueDate && (
+                                <p className="text-xs text-gray-600">
+                                  {new Date(certificate.issueDate).toLocaleDateString('az-AZ', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  })}
+                                </p>
+                              )}
+                              {certificate.courseTitle && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {certificate.courseTitle}
+                                </p>
+                              )}
+                              {certificate.email && (
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  {certificate.email}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -871,10 +1217,12 @@ export default function CourseDetailPage() {
           isOpen={isQuizModalOpen}
           sectionId={selectedSectionId}
           sectionTitle={sections.find(s => s.id === selectedSectionId)?.title || 'Section'}
+          quiz={editingQuiz}
           onSave={handleSaveQuiz}
           onClose={() => {
             setIsQuizModalOpen(false)
             setSelectedSectionId('')
+            setEditingQuiz(null)
           }}
         />
       )}
