@@ -32,16 +32,28 @@ export async function POST(request: NextRequest) {
     }
     formData.append('Date', String(date))
 
-    // Handle File
+    // Handle File - In Node.js, FormData files are Blob-like objects
     const file = incomingFormData.get('File')
-    if (file && file instanceof File) {
-      formData.append('File', file)
-    } else {
+    if (!file) {
       return NextResponse.json(
         { error: 'Certificate PDF file is required' },
         { status: 400 }
       )
     }
+    
+    // Convert file to Buffer/Blob for proper handling
+    let fileBlob: Blob
+    if (file instanceof Blob || file instanceof File) {
+      fileBlob = file
+    } else {
+      // Convert to Blob if it's a different type
+      const arrayBuffer = await (file as any).arrayBuffer()
+      fileBlob = new Blob([arrayBuffer], { type: 'application/pdf' })
+    }
+    
+    // Get filename if available
+    const fileName = file instanceof File ? file.name : 'certificate.pdf'
+    formData.append('File', fileBlob, fileName)
 
     // Handle Email
     const email = incomingFormData.get('Email')
@@ -62,7 +74,17 @@ export async function POST(request: NextRequest) {
     console.log('Date:', formData.get('Date'))
     console.log('Email:', formData.get('Email'))
     console.log('Has File:', formData.has('File'))
-    console.log('File Name:', formData.get('File') instanceof File ? (formData.get('File') as File).name : 'N/A')
+    const fileForLog = formData.get('File')
+    if (fileForLog) {
+      if (fileForLog instanceof File) {
+        console.log('File Name:', fileForLog.name)
+        console.log('File Size:', fileForLog.size, 'bytes')
+        console.log('File Type:', fileForLog.type)
+      } else if (fileForLog instanceof Blob) {
+        console.log('File Size:', fileForLog.size, 'bytes')
+        console.log('File Type:', fileForLog.type)
+      }
+    }
     console.log('===================================')
 
     // Create AbortController for timeout - increased to 300 seconds (5 minutes)
@@ -95,8 +117,14 @@ export async function POST(request: NextRequest) {
         )
       }
       console.error('=== FETCH ERROR ===')
-      console.error('Error:', fetchError.message)
-      throw fetchError
+      console.error('Error Name:', fetchError.name)
+      console.error('Error Message:', fetchError.message)
+      console.error('Error Stack:', fetchError.stack)
+      console.error('Full Error:', JSON.stringify(fetchError, Object.getOwnPropertyNames(fetchError)))
+      return NextResponse.json(
+        { error: `Network error: ${fetchError.message || 'Failed to connect to backend'}` },
+        { status: 500 }
+      )
     }
 
     console.log('=== BACKEND RESPONSE ===')
