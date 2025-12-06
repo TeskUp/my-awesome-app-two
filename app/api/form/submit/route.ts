@@ -116,8 +116,8 @@ export async function POST(request: NextRequest) {
       
       // If 404, provide more specific error message
       if (response.status === 404) {
-        errorMessage = `Endpoint not found (404). Tried: ${endpointPaths.join(', ')}. Please check Swagger documentation to verify the correct endpoint path.`
-        console.error('404 Error - All endpoint paths failed. Check Swagger for correct endpoint.')
+        errorMessage = `Endpoint not found (404). Tried: ${endpointUrl}. Please check Swagger documentation to verify the correct endpoint path.`
+        console.error('404 Error - Endpoint not found. Check Swagger for correct endpoint.')
       }
       
       try {
