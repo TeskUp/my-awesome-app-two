@@ -37,14 +37,14 @@ export async function POST(request: NextRequest) {
     // Embed fonts - using bold font for beautiful, large text
     const boldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold)
 
-    // Calculate position for name - place it exactly in the center of the gradient area
-    // Based on TeskUp Certificate design, the name should be perfectly centered in the gradient shape
-    const nameY = height * 0.50 // Perfect center of the gradient area
+    // Calculate position for name - place it slightly above center, below the gradient bar
+    // Based on TeskUp Certificate design, the name should be positioned below the gradient shape
+    const nameY = height * 0.52 // Slightly above center, positioned below gradient bar
     const nameX = width / 2 // Center horizontally
 
-    // Draw the user's name with large, beautiful, bold font
-    // Font size optimized for the gradient area
-    const fontSize = 44 // Large, beautiful font size - optimized for gradient area visibility
+    // Draw the user's name with medium, beautiful, bold font
+    // Font size set to medium for optimal appearance
+    const fontSize = 38 // Medium font size - balanced and elegant
     const textWidth = boldFont.widthOfTextAtSize(userName, fontSize)
     
     firstPage.drawText(userName, {
