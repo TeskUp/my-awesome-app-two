@@ -258,13 +258,19 @@ export default function CertificateModal({
 
     setSending(true)
     try {
-      // LOCALHOST MODE: Send certificates directly from modal using localhost endpoint
-      const LOCALHOST_API = 'https://localhost:7240/api'
+      // Use Next.js API route to proxy requests to backend
       const results: Array<{ status: 'fulfilled' | 'rejected', value?: any, reason?: any }> = []
       
-      console.log('=== SENDING CERTIFICATES VIA LOCALHOST ===')
+      // Get today's date in DD.MM.YYYY format
+      const today = new Date()
+      const day = String(today.getDate()).padStart(2, '0')
+      const month = String(today.getMonth() + 1).padStart(2, '0')
+      const year = today.getFullYear()
+      const formattedDate = `${day}.${month}.${year}`
+      
+      console.log('=== SENDING CERTIFICATES VIA API ROUTE ===')
       console.log('Users:', completedUsers.length)
-      console.log('Endpoint:', `${LOCALHOST_API}/Form/submit`)
+      console.log('Endpoint: /api/form/submit')
       console.log('==========================================')
       
       // Send certificate to each user sequentially
@@ -300,9 +306,11 @@ export default function CertificateModal({
 
           console.log(`  ✓ PDF generated for ${userName}`)
 
-          // Step 2: Send certificate via localhost Form/submit endpoint
-          console.log(`  → Sending email to ${user.email} via localhost...`)
+          // Step 2: Send certificate via Next.js API route (which proxies to backend)
+          console.log(`  → Sending email to ${user.email} via API route...`)
           const formData = new FormData()
+          formData.append('Name', userName) // Required by backend
+          formData.append('Date', formattedDate) // Required by backend
           formData.append('File', pdfFile)
           formData.append('Email', user.email)
 
@@ -311,7 +319,7 @@ export default function CertificateModal({
           const timeoutId = setTimeout(() => controller.abort(), 360000) // 360 seconds timeout
 
           try {
-            const emailResponse = await fetch(`${LOCALHOST_API}/Form/submit`, {
+            const emailResponse = await fetch('/api/form/submit', {
               method: 'POST',
               body: formData,
               signal: controller.signal,
@@ -320,14 +328,14 @@ export default function CertificateModal({
             clearTimeout(timeoutId)
 
             if (!emailResponse.ok) {
-              const errorText = await emailResponse.text()
+              const errorData = await emailResponse.json().catch(() => ({ error: 'Failed to send certificate' }))
               throw new Error(
-                `Failed to send certificate to ${user.email}: ${emailResponse.status} ${emailResponse.statusText} - ${errorText}`
+                errorData.error || `Failed to send certificate to ${user.email}: ${emailResponse.status} ${emailResponse.statusText}`
               )
             }
 
-            const result = await emailResponse.text()
-            console.log(`  ✓ Certificate sent to ${user.email}:`, result)
+            const result = await emailResponse.json()
+            console.log(`  ✓ Certificate sent to ${user.email}:`, result.message || result)
             results.push({ status: 'fulfilled', value: { user, success: true } })
           } catch (error: any) {
             clearTimeout(timeoutId)
@@ -338,7 +346,14 @@ export default function CertificateModal({
           }
         } catch (error: any) {
           console.error(`  ✗ Failed to process certificate for ${user.email}:`, error.message)
-          results.push({ status: 'rejected', reason: error })
+          // Create a more user-friendly error message
+          let errorMessage = error.message || 'Unknown error'
+          if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+            errorMessage = `Şəbəkə xətası: Backend-ə bağlantı qurula bilmədi. Zəhmət olmasa yenidən cəhd edin.`
+          } else if (errorMessage.includes('timeout') || errorMessage.includes('AbortError')) {
+            errorMessage = `Zaman aşımı: Backend cavab vermədi. Email xidməti yavaş ola bilər.`
+          }
+          results.push({ status: 'rejected', reason: { ...error, message: errorMessage } })
           // Continue with next user instead of stopping
         }
       }
