@@ -322,9 +322,10 @@ export default function CertificateModal({
 
             if (!emailResponse.ok) {
               const errorData = await emailResponse.json().catch(() => ({ error: 'Failed to send certificate' }))
-              throw new Error(
-                errorData.error || `Failed to send certificate to ${user.email}: ${emailResponse.status} ${emailResponse.statusText}`
-              )
+              // Use details if available, otherwise use error message
+              const errorMessage = errorData.details || errorData.error || `Failed to send certificate to ${user.email}: ${emailResponse.status} ${emailResponse.statusText}`
+              console.error(`  ✗ Backend error for ${user.email}:`, errorMessage)
+              throw new Error(errorMessage)
             }
 
             const result = await emailResponse.json()
