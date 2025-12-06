@@ -102,7 +102,7 @@ export default function CertificateModal({
         ]
         
         // Add test users that don't already exist
-        const existingEmails = new Set(completedUsers.map(u => u.email))
+        const existingEmails = new Set(completedUsers.map((u: EnrolledUser) => u.email))
         const newTestUsers = testUsers.filter(tu => !existingEmails.has(tu.email))
         const finalUsers = [...completedUsers, ...newTestUsers]
         
