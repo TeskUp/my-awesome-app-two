@@ -44,22 +44,15 @@ export async function POST(request: NextRequest) {
     }
     
     // Append file directly to FormData - backend expects 'File' field name
-    // In Node.js, file from FormData might be Blob or File-like object
-    if (file instanceof File) {
-      formData.append('File', file)
-    } else if (file instanceof Blob) {
-      formData.append('File', file, 'certificate.pdf')
-    } else {
-      // For Node.js FormData, convert to Blob if needed
-      try {
-        const arrayBuffer = await (file as any).arrayBuffer()
-        const fileBlob = new Blob([arrayBuffer], { type: 'application/pdf' })
-        formData.append('File', fileBlob, 'certificate.pdf')
-      } catch (e) {
-        // If conversion fails, try to append directly
-        formData.append('File', file as any, 'certificate.pdf')
-      }
+    // Type guard: ensure file is a File instance
+    if (!file || typeof file !== 'object' || !(file instanceof File)) {
+      return NextResponse.json(
+        { error: 'Geçersiz dosya formatı. Lütfen geçerli bir dosya yükleyin.' },
+        { status: 400 }
+      )
     }
+    
+    formData.append('File', file)
 
     // Handle Email
     const email = incomingFormData.get('Email')
@@ -81,15 +74,10 @@ export async function POST(request: NextRequest) {
     console.log('Email:', formData.get('Email'))
     console.log('Has File:', formData.has('File'))
     const fileForLog = formData.get('File')
-    if (fileForLog) {
-      if (fileForLog instanceof File) {
-        console.log('File Name:', fileForLog.name)
-        console.log('File Size:', fileForLog.size, 'bytes')
-        console.log('File Type:', fileForLog.type)
-      } else if (fileForLog instanceof Blob) {
-        console.log('File Size:', fileForLog.size, 'bytes')
-        console.log('File Type:', fileForLog.type)
-      }
+    if (fileForLog && fileForLog instanceof File) {
+      console.log('File Name:', fileForLog.name)
+      console.log('File Size:', fileForLog.size, 'bytes')
+      console.log('File Type:', fileForLog.type)
     }
     console.log('===================================')
 
