@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminToken } from '@/services/authApi'
 
+export const dynamic = 'force-dynamic'
+
 const API_BASE_URL = 'https://teskup-production.up.railway.app/api'
 
 export async function GET(request: NextRequest) {
@@ -49,8 +51,22 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
+    
+    // Map backend response to frontend format
+    // Backend returns: { id, firstName, lastName, userName, email, refreshToken, refreshTokenExpiredAt, role }
+    // Frontend expects: { id, fullName, userName, email, role, refreshToken, refreshTokenExpiredAt }
+    const mappedUsers = Array.isArray(data) ? data.map((user: any) => ({
+      id: user.id,
+      fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.userName || user.email,
+      userName: user.userName,
+      email: user.email,
+      role: user.role,
+      refreshToken: user.refreshToken,
+      refreshTokenExpiredAt: user.refreshTokenExpiredAt,
+    })) : []
+    
     return NextResponse.json({
-      users: Array.isArray(data) ? data : [],
+      users: mappedUsers,
     })
   } catch (error: any) {
     console.error('Error in getAll users API route:', error)

@@ -18,7 +18,7 @@ export interface LoginResponse {
 const ADMIN_CREDENTIALS = {
   // email və ya userName-dən biri ola bilər; email daha sabitdir
   emailOrUsername: 'ruslan123@gmail.com',
-  password: 'Ruslan12#',
+  password: 'Ruslan1234',
   isPersistent: true,
 }
 
