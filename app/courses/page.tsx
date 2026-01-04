@@ -392,10 +392,14 @@ export default function CoursesPage() {
           imageBlob = new Blob([byteArray], { type: mimeType })
         }
         
+        // Ensure price is 0 if course is free
+        const finalPrice = course.isFree ? 0 : (course.price || 0)
+        
         console.log('=== UPDATING COURSE ===')
         console.log('Course ID:', editingCourse.id)
         console.log('IsFree:', course.isFree)
-        console.log('Price:', course.price)
+        console.log('Price (original):', course.price)
+        console.log('Price (final):', finalPrice)
         console.log('CategoryId:', course.categoryId)
         console.log('LevelId:', course.levelId)
         console.log('TeacherIds:', course.teacherIds)
@@ -409,7 +413,7 @@ export default function CoursesPage() {
                 id: editingCourse.id,
                 // DriveLink removed - not in Swagger
                 IsFree: course.isFree,
-          Price: course.price,
+          Price: finalPrice,
           Image: imageBlob,
           UsedLanguageId: course.usedLanguageId,
           CategoryId: course.categoryId,
@@ -662,10 +666,13 @@ export default function CoursesPage() {
         const descFromCourse = course.description && course.description !== 'No Description' ? course.description : ''
         const descriptionToUse = (descFromDetails && descFromDetails.trim() !== '' ? descFromDetails : descFromCourse) || ''
         
+        // Ensure price is 0 if course is free
+        const finalPrice = course.isFree ? 0 : (course.price || 0)
+        
         const createResult = await createCourse({
           // DriveLink removed - not in Swagger
           IsFree: course.isFree,
-          Price: course.price,
+          Price: finalPrice,
           Image: imageBlob,
           UsedLanguageId: course.usedLanguageId,
           CategoryId: course.categoryId,

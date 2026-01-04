@@ -55,7 +55,7 @@ export default function CertificateModal({
         const allUsers = data.users || []
         const completedUsers = allUsers.filter((u: EnrolledUser) => {
         // Test users - force 100% for testing
-        const testEmails = ['rauf123@gmail.com', 'test1@example.com', 'test2@example.com', 'vusalguluyev153@gmail.com', 'yusiflienel@gmail.com']
+        const testEmails = ['rauf123@gmail.com', 'test1@example.com', 'test2@example.com', 'vusalguluyev153@gmail.com']
           if (testEmails.includes(u.email)) {
             u.progress = 100
             u.completed = true
@@ -87,14 +87,6 @@ export default function CertificateModal({
             id: 'test-user-vusal',
             email: 'vusalguluyev153@gmail.com',
             name: 'Vusal',
-            progress: 100,
-            completed: true,
-            status: 'Completed',
-          },
-          {
-            id: 'test-user-enel',
-            email: 'yusiflienel@gmail.com',
-            name: 'Enel Yusifli',
             progress: 100,
             completed: true,
             status: 'Completed',
@@ -143,14 +135,6 @@ export default function CertificateModal({
             completed: true,
             status: 'Completed',
           },
-          {
-            id: 'test-user-enel',
-            email: 'yusiflienel@gmail.com',
-            name: 'Enel Yusifli',
-            progress: 100,
-            completed: true,
-            status: 'Completed',
-          },
         ]
         setUsers(testUsers)
       }
@@ -190,14 +174,6 @@ export default function CertificateModal({
           completed: true,
           status: 'Completed',
         },
-          {
-            id: 'test-user-enel',
-            email: 'yusiflienel@gmail.com',
-            name: 'Enel Yusifli',
-            progress: 100,
-            completed: true,
-            status: 'Completed',
-          },
       ]
       setUsers(testUsers)
     } finally {

@@ -208,13 +208,16 @@ export default function CourseModal({
       languageId: DEFAULT_LANGUAGE_ID // Use UUID instead of 'English'
     }]
 
+    // Ensure price is 0 if course is free
+    const finalPrice = formData.isFree ? 0 : (parseFloat(formData.price) || 0)
+
     const courseItem: CourseItem = {
       id: course?.id || '',
       title: formData.title.trim(),
       description: formData.description.trim(),
       driveLink: '', // Not in Swagger - removed from form
       isFree: formData.isFree,
-      price: parseFloat(formData.price) || 0,
+      price: finalPrice,
       imageUrl: imagePreview || '',
       usedLanguageId: formData.usedLanguageId,
       categoryId: formData.categoryId,
