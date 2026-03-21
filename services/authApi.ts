@@ -105,11 +105,12 @@ export async function adminLogin(): Promise<string> {
 
         if (retryResponse.ok) {
           const retryData = JSON.parse(retryText)
-          let retryToken = retryData.token || retryData.accessToken || retryData.access_token || retryData.jwtToken
+          const retryToken = retryData.token || retryData.accessToken || retryData.access_token || retryData.jwtToken
           if (retryToken) {
-            cachedToken = retryToken.trim()
+            const newToken = retryToken.trim()
+            cachedToken = newToken
             tokenExpiry = getExpiryTimestamp(retryData)
-            return cachedToken
+            return newToken
           }
         }
 
