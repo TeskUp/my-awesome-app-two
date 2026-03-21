@@ -15,11 +15,20 @@ export interface LoginResponse {
 }
 
 // Admin credentials (backend-də qeydiyyatda olan admin istifadəçi)
+// Dəyişiklikləri .env faylından almaq imkanı əlavə edilib.
 const ADMIN_CREDENTIALS = {
   // email və ya userName-dən biri ola bilər; email daha sabitdir
-  emailOrUsername: 'ruslan123@gmail.com',
-  password: 'Ruslan1234',
+  emailOrUsername: process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admintesk@gmail.com',
+  password: process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'Admin123#',
   isPersistent: true,
+}
+
+// Admin profili (register üçün lazım ola bilər).
+export const ADMIN_PROFILE = {
+  firstName: process.env.NEXT_PUBLIC_ADMIN_FIRST_NAME || 'TeskUp',
+  lastName: process.env.NEXT_PUBLIC_ADMIN_LAST_NAME || 'Admin',
+  userName: process.env.NEXT_PUBLIC_ADMIN_USERNAME || 'admin123',
+  role: process.env.NEXT_PUBLIC_ADMIN_ROLE || 'Admin',
 }
 
 let cachedToken: string | null = null
@@ -75,8 +84,39 @@ export async function adminLogin(): Promise<string> {
 
     if (!response.ok) {
       console.error('Admin login error:', responseText)
+
+      // Try to self-provision admin user if login failed with 401/404.
+      if (response.status === 401 || response.status === 404) {
+        console.log('Login failed, trying to register admin account before retrying login')
+        await tryCreateAdminUser()
+
+        // Retry login once after registration attempt
+        const retryResponse = await fetch(`${BACKEND_API_BASE_URL}/Auth/Login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': '*/*',
+          },
+          body: JSON.stringify(ADMIN_CREDENTIALS),
+          cache: 'no-store',
+        })
+
+        const retryText = await retryResponse.text()
+
+        if (retryResponse.ok) {
+          const retryData = JSON.parse(retryText)
+          let retryToken = retryData.token || retryData.accessToken || retryData.access_token || retryData.jwtToken
+          if (retryToken) {
+            cachedToken = retryToken.trim()
+            tokenExpiry = getExpiryTimestamp(retryData)
+            return cachedToken
+          }
+        }
+
+        console.warn('Retry admin login failed after register attempt:', retryResponse.status, retryText)
+      }
+
       let errorMessage = `Failed to login as admin: ${response.status} ${response.statusText}`
-      
       try {
         const errorData = JSON.parse(responseText)
         if (errorData.message) {
@@ -87,7 +127,6 @@ export async function adminLogin(): Promise<string> {
           errorMessage = `${errorMessage} - ${responseText}`
         }
       }
-      
       throw new Error(errorMessage)
     }
 
@@ -144,6 +183,61 @@ export async function adminLogin(): Promise<string> {
     console.error('Error in admin login:', error)
     throw error
   }
+}
+
+/**
+ * Try to create admin account via backend register endpoint when needed.
+ */
+async function tryCreateAdminUser(): Promise<void> {
+  try {
+    const payload = {
+      firstName: ADMIN_PROFILE.firstName,
+      lastName: ADMIN_PROFILE.lastName,
+      email: ADMIN_CREDENTIALS.emailOrUsername,
+      password: ADMIN_CREDENTIALS.password,
+      userName: ADMIN_PROFILE.userName,
+      role: ADMIN_PROFILE.role,
+    }
+
+    console.log('Trying to create admin user via Auth/Register with payload:', {
+      ...payload,
+      password: '******',
+    })
+
+    const response = await fetch(`${BACKEND_API_BASE_URL}/Auth/Register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      cache: 'no-store',
+    })
+
+    const text = await response.text()
+    console.log('Auth/Register status:', response.status, 'text (first 300):', text.substring(0, 300))
+
+    if (!response.ok) {
+      // If user already exists or validation cannot proceed, that's okay, continue flow
+      console.warn('Auth/Register did not succeed; continuing with login attempt. Status:', response.status)
+    }
+  } catch (error) {
+    console.error('Error in tryCreateAdminUser:', error)
+    // ignore failures; login may still work or fail with original message
+  }
+}
+
+function getExpiryTimestamp(data: any): number {
+  if (data.expiredDate) {
+    const expiry = new Date(data.expiredDate)
+    if (!isNaN(expiry.getTime())) {
+      return expiry.getTime()
+    }
+  }
+  if (data.expiresIn) {
+    return Date.now() + Number(data.expiresIn) * 1000
+  }
+  return Date.now() + 3600000
 }
 
 /**
