@@ -77,8 +77,8 @@ export default function CourseModal({
 
   const handleAddCategory = async () => {
     try {
-      // Create a new category
-      const createResponse = await fetch('https://teskup-production.up.railway.app/api/Category/Create', {
+      // Create a new category via local API route
+      const createResponse = await fetch('/api/categories/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -90,8 +90,8 @@ export default function CourseModal({
         throw new Error(`Failed to create category: ${errorText}`);
       }
       const createdCategory = await createResponse.json();
-      // Add category details
-      const addDetailResponse = await fetch(`https://teskup-production.up.railway.app/api/Category/AddCategoryDetail/categorydetails/${createdCategory.id}`, {
+      // Add category details via local API route
+      const addDetailResponse = await fetch('/api/categories/addDetail', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
